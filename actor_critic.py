@@ -1,0 +1,150 @@
+import copy
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import numpy as np
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
+from torch.distributions import Normal
+from utils import ReplayBuffer, get_env, run_episode
+
+
+class NeuralNetwork(nn.Module):
+	'''
+	This class implements a neural network with a variable number of hidden layers and hidden units.
+	You may use this function to parametrize your policy and critic networks.
+	'''
+	def __init__(self, input_dim: int, output_dim: int, hidden_size: int, hidden_layers: int, activation: str):
+		super(NeuralNetwork, self).__init__()
+		layers = [nn.Linear(input_dim, hidden_size)]
+		layers += [nn.Linear(hidden_size, hidden_size) for _ in range(hidden_layers)]
+		layers += [nn.Linear(hidden_size, output_dim)]
+
+		self.layers = nn.ModuleList(layers)
+		self.activation = activation
+
+	def forward(self, s: torch.Tensor) -> torch.Tensor:
+		# TODO: Implement the forward pass for the neural network you have defined.
+		for layer in self.layers[:-1]:
+			if self.activation == 'softmax':
+				s = F.softmax(layer(s))
+			else:
+				s = F.leaky_relu(layer(s))
+		return self.layers[-1](s)
+
+
+class Actor(nn.Module):
+	"""
+	Policy
+	"""
+	def __init__(self, hidden_size: int, hidden_layers: int, actor_lr: float, state_dim: int = 3, action_dim: int = 1, device: torch.device = torch.device('mps')):
+		super(Actor, self).__init__()
+		self.hidden_size = hidden_size
+		self.hidden_layers = hidden_layers
+		self.actor_lr = actor_lr
+		self.state_dim = state_dim
+		self.action_dim = action_dim
+		self.device = device
+		self.LOG_STD_MIN = -20
+		self.LOG_STD_MAX = 2
+		self.setup_actor()
+
+	def setup_actor(self):
+		'''
+		This function sets up the actor network in the Actor class.
+		'''
+		# TODO: Implement this function which sets up the actor network.
+		# Take a look at the NeuralNetwork class in utils.py.
+		self.network = NeuralNetwork(
+			self.state_dim,
+			self.action_dim * 2,
+			self.hidden_size,
+			self.hidden_layers,
+			'relu').to(self.device)
+		self.optimizer = optim.Adam(self.network.parameters(), lr=self.actor_lr, amsgrad=True)
+
+	def clamp_log_std(self, log_std: torch.Tensor) -> torch.Tensor:
+		'''
+		:param log_std: torch.Tensor, log_std of the policy.
+		Returns:
+		:param log_std: torch.Tensor, log_std of the policy clamped between LOG_STD_MIN and LOG_STD_MAX.
+		'''
+		return torch.clamp(log_std, self.LOG_STD_MIN, self.LOG_STD_MAX)
+	
+	def forward(self, state: torch.Tensor, deterministic: bool) -> (torch.Tensor, torch.Tensor):
+		'''
+		:param state: torch.Tensor, state of the agent
+		:param deterministic: boolean, if true return a deterministic action otherwise sample from the policy distribution.
+		Returns:
+		:param action: torch.Tensor, action the policy returns for the state.
+		:param log_prob: log_probability of the the action.
+		'''
+		assert state.shape == (3,) or state.shape[1] == self.state_dim, 'State passed to this method has a wrong shape'
+		# TODO: Implement this function which returns an action and its log probability.
+		# If working with stochastic policies, make sure that its log_std are clamped 
+		# using the clamp_log_std function.
+		mu_logstd = self.network(state)
+		mu, log_prob = mu_logstd.chunk(2, dim=1)
+		log_prob = self.clamp_log_std(log_prob)
+		std = log_prob.exp()
+		
+		reparameter = Normal(mu, std)
+		x_t = reparameter.rsample()
+		y_t = torch.tanh(x_t)
+		action = y_t
+
+		# Enforcing Action Bound
+		log_prob = reparameter.log_prob(x_t)
+		log_prob = log_prob - torch.sum(torch.log((1 - y_t.pow(2)) + 1e-6), dim=-1, keepdim=True)
+
+		assert action.shape == (state.shape[0], self.action_dim) and \
+			log_prob.shape == (state.shape[0], self.action_dim), 'Incorrect shape for action or log_prob.'
+		# if deterministic:
+		#	 return torch.tanh(mu), log_prob
+		return action, log_prob
+
+
+class Critic(nn.Module):
+	"""
+	Q-function(s)
+	"""
+	def __init__(self, hidden_size: int,
+				hidden_layers: int, critic_lr: int, state_dim: int = 3,
+				action_dim: int = 1,device: torch.device = torch.device('cpu')):
+		super(Critic, self).__init__()
+		self.hidden_size = hidden_size
+		self.hidden_layers = hidden_layers
+		self.critic_lr = critic_lr
+		self.state_dim = state_dim
+		self.action_dim = action_dim
+		self.device = device
+		self.setup_critic()
+
+	def setup_critic(self):
+		self.network = NeuralNetwork(
+			self.state_dim + self.action_dim,
+			self.action_dim,
+			256,
+			2,
+			'relu')
+		self.optimizer = optim.Adam(self.parameters(), lr=self.critic_lr)
+
+	def forward(self, x, a):
+		return self.network.forward(torch.cat([x, a], dim=-1))
+
+
+class TrainableParameter:
+	'''
+	This class could be used to define a trainable parameter in your method. You could find it 
+	useful if you try to implement the entropy temerature parameter for SAC algorithm.
+	'''
+	def __init__(self, init_param: float, lr_param: float, 
+				 train_param: bool, device: torch.device = torch.device('cpu')):
+		self.log_param = torch.tensor(np.log(init_param), requires_grad=train_param, device=device)
+		self.optimizer = optim.Adam([self.log_param], lr=lr_param)
+
+	def get_param(self) -> torch.Tensor:
+		return torch.exp(self.log_param)
+
+	def get_log_param(self) -> torch.Tensor:
+		return self.log_param
