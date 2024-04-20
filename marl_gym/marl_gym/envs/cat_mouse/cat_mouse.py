@@ -1,6 +1,6 @@
 import gym
 from gym import spaces
-from utils import *
+from marl_gym.marl_gym.envs.utils.utils import * # maybe need to change if made to package
 import numpy as np
 import math
 
@@ -19,7 +19,7 @@ class CatMouse(gym.Env):
         # need to figure out spaces
         self.observation_space = MultiAgentObservationSpace([spaces.Box(low=0, high=1, shape=(1,1), dtype=np.float32) for _ in range(n_agents + n_mice)])
         # MAOS is just wrapper for list so we can use sample
-        self.action_space = MultiAgentActionSpace([spaces.Box(low=0, high=1, dtype=np.float32) for _ in range(n_agents)])
+        self.action_space = spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=np.float32)
 
         self.render_mode = render_mode
 
@@ -27,11 +27,12 @@ class CatMouse(gym.Env):
 
     # turn env state into observation state
     def _get_obs(self):
-        pass
+        return (self.agents, self.mice)
 
     def reset(self):
         self.agents = [(np.random.uniform(),np.random.uniform()) for _ in range(self.n_agents)]
         self.mice = [(np.random.uniform(),np.random.uniform(), 0) for _ in range(self.n_mice)]
+        return self._get_obs()
 
     # action here should be 
     def step(self, action):
@@ -61,14 +62,14 @@ class CatMouse(gym.Env):
             move_x = self.step_size * math.cos(direction)
             move_y = self.step_size * math.sin(direction)
             
-            self.mice[i] = (min(max(0,cur_x + move_x),1), max(min(1, cur_y + move_y), caught))
+            self.mice[i] = (min(max(0,cur_x + move_x),1), max(min(1, cur_y + move_y), 0), caught)
 
             # check for current mouse if caught
             for j in range(self.n_agents):
                 if self.in_range(self.agents[j], self.mice[i]):
                     self.mice[i][2] = True
 
-        next_state = (self.agents, self.mice)
+        next_state = self._get_obs()
 
         terminated = all([caught for _,_,caught in self.mice])
 
