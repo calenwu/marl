@@ -25,8 +25,8 @@ class Agent:
 		self.setup_agent()
 
 	def setup_agent(self):
-		self.actor = actor_critic.Actor(256, 2, 1e-4, self.state_dim, self.action_dim, self.device)
-		self.critic = actor_critic.Critic(256, 2, 1e-4, self.state_dim, self.action_dim*self.num_agents).to(self.device)
+		self.actor = actor_critic.Actor(256, 2, 1e-4,  self.state_dim, self.action_dim, self.beta, self.device)
+		self.critic = actor_critic.Critic(256, 2, 1e-4, self.state_dim, self.action_dim*self.num_agents, self.beta,).to(self.device)
 
 	def choose_action(self, s):
 		with torch.no_grad():
@@ -49,14 +49,22 @@ class Agent:
 
 	def update_mu(self, t, r):
 		beta = self.beta(t)
-		self.mu = (1-beta) * self.mu + beta * (r)
+		self.mu = (1-beta) * self.mu + beta * r
 
-	def update_critic(self, s, a, r):
-		delta = r - self.mu + self.critic(s, a)
-		
+	def update_critic(self, s_t, a_t, s_tn, a_tn, r):
+		delta = r - self.mu + self.critic(s_tn, a_tn)-self.critic(s_t, a_t)
+		self.run_gradient_update_step(self.critic, delta)
 
-	def update_actor(self, s, a, r):
-		pass
+	def get_subset_actions(self):
+		return []
+
+	def update_actor(self, s_t, a_t):
+		A = self.critic(s_t, a_t)
+		for a_i in self.get_subset_actions():
+			a = a_t
+			a[self.agent_id] = a_i
+			A -= self.actor.get_prob(s_t, a_i)*self.critic(s_t, a_t)
+		self.run_gradient_update_step(self.actor, A)
 
 	def get_omega(self):
 		return self.critic.parameters()
