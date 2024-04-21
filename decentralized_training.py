@@ -30,8 +30,8 @@ class Decentralized:
             a_tn = self.get_actions(s_tn)
 
             for i in range(self.num_agents):
-                self.agents[i].update_critic(s_tn, a_tn, rs[i])
                 self.agents[i].update_actor(s_tn, a_tn, rs[i])
+                self.agents[i].update_critic(s_tn, a_tn, s_tn, a_tn, rs[i])
 
             con = self.env.get_connections(s_tn)
 
