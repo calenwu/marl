@@ -4,6 +4,8 @@ import warnings
 import numpy as np
 from pettingzoo.mpe import simple_spread_v3
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from maddpg import MADDPG
 
@@ -11,7 +13,7 @@ LOAD_TYPE = ['Regular', 'Best']  # Regular: save every 10k, Best: save only if a
 PRINT_INTERVAL = 500
 SAVE_INTERVAL = 5000
 MAX_STEPS = 25
-EPISODES = 60_000
+EPISODES = 30_000
 
 
 def obs_list_to_state_vector(observation):
@@ -94,6 +96,8 @@ def solve_env_with_subpolicies(env, evaluate: bool=False):
 	epsiode_mean_agent_rewards = {agent_name: [] for agent_name in env.agents}
 	episode_lengths = []
 
+	eps = []
+	rewards = []
 	# maddpg_agents.load_checkpoint(LOAD_TYPE[0])  # load best
 	if evaluate:
 		maddpg_agents.load_checkpoint(LOAD_TYPE[0])  # load best
@@ -122,7 +126,7 @@ def solve_env_with_subpolicies(env, evaluate: bool=False):
 
 				maddpg_agents.store_transition(obs, state, actions, reward, obs_, state_, done)
 
-				if total_steps % 5 == 0:
+				if total_steps % 25 == 0:
 					maddpg_agents.learn()
 
 				obs = obs_
@@ -146,12 +150,28 @@ def solve_env_with_subpolicies(env, evaluate: bool=False):
 
 			if i % SAVE_INTERVAL == 0 and i > 0:
 				maddpg_agents.save_checkpoint(LOAD_TYPE[0])
+				rewards.append(avg_score)
+				eps.append(i)
 
 			# Compute mean agent rewards
 			for agent_name, rewards in agent_rewards.items():
 				mean_agent_reward = sum(rewards)
 				epsiode_mean_agent_rewards[agent_name].append(mean_agent_reward)
 
+		plt.figure(figsize=(10, 5))
+		plt.plot(eps, rewards)
+		plt.xlabel('Episodes')
+		plt.ylabel('Reward')
+		plt.title('Reward vs Episodes')
+		plt.grid(True)
+
+		# Save the plot to a file
+		plt.savefig('reward_vs_episodes.png')
+
+		# Storing the data in a .csv file
+		data = {'Episodes': eps, 'Reward': rewards}
+		df = pd.DataFrame(data)
+		df.to_csv('reward_vs_episodes.csv', index=False)
 
 if __name__ == '__main__':
 	warnings.filterwarnings('ignore')
