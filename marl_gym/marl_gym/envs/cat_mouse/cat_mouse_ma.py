@@ -3,13 +3,14 @@ from gym import spaces
 from marl_gym.marl_gym.envs.utils.utils import * # maybe need to change if made to package
 import numpy as np
 import math
+import pygame
 
 # multi-agent version
 class CatMouseMA(gym.Env):
 
-    metadata = {'render_modes': ['human']}
+    metadata = {'render_modes': ['human'], "render_fps": 4}
     
-    def __init__(self, area_size=(1,1), n_agents=2, n_mice=4, step_size=0.05, entity_size=0.05, observation_radius=0.2, step_cost = -0.1, render_mode=None):
+    def __init__(self, area_size=(1,1), n_agents=2, n_mice=4, step_size=0.05, entity_size=0.05, observation_radius=0.2, step_cost = -0.1, render_mode='human', window_size=250):
         
         self.area_size = area_size
         self.n_agents = n_agents
@@ -18,6 +19,9 @@ class CatMouseMA(gym.Env):
         self.entity_size = entity_size
         self.observation_radius = observation_radius
         self.step_cost = step_cost
+        self.window = None
+        self.clock = None
+        self.window_size = window_size
         
         # need to figure out spaces
         self.observation_space = MultiAgentObservationSpace([spaces.Tuple((spaces.Box(0,1,shape=(self.n_agents,3)),spaces.Box(0,1,shape=(self.n_mice,3)))) for _ in range(self.n_agents + self.n_mice)])
@@ -171,8 +175,61 @@ class CatMouseMA(gym.Env):
         return reward
 
     def render(self):
-        pass
+        self._render_frame()
+        
+    def _render_frame(self):
+        if self.window is None:
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode((self.window_size, self.window_size))
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
+
+        canvas = pygame.Surface((self.window_size, self.window_size))
+
+        canvas.fill((255, 255, 255))
+
+        for a in self.agents:
+            x,y,*_ = a
+            x *= self.window_size
+            y *= self.window_size
+            pygame.draw.circle(
+                canvas,
+                (0, 0, 255),
+                (x,y),
+                self.entity_size*self.window_size,
+            )
+            pygame.draw.circle(
+                canvas,
+                (0,0,0),
+                (x,y),
+                self.observation_radius*self.window_size,
+                width=1
+            )
+        
+        for m in self.mice:
+            if m[2]:
+                continue
+            x,y,*_ = m
+            x *= self.window_size
+            y *= self.window_size
+            pygame.draw.circle(
+                canvas,
+                (255, 0, 0),
+                (x,y),
+                self.entity_size*self.window_size,
+            )
+            
+        self.window.blit(canvas, canvas.get_rect())
+        pygame.event.pump()
+        pygame.display.update()
+
+        # We need to ensure that human-rendering occurs at the predefined framerate.
+        # The following line will automatically add a delay to keep the framerate stable.
+        self.clock.tick(self.metadata["render_fps"])
     
     # close rendering
     def close(self):
-        pass
+        if self.window is not None:
+            pygame.display.quit()
+            pygame.quit()
