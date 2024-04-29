@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from gym.wrappers.monitoring.video_recorder import VideoRecorder
+#from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from torch.distributions import Normal
-from utils import ReplayBuffer, get_env, run_episode
+#from utils import ReplayBuffer, get_env, run_episode
 
 
 class NeuralNetwork(nn.Module):
@@ -37,7 +37,7 @@ class Actor(nn.Module):
 	"""
 	Policy
 	"""
-	def __init__(self, hidden_size: int, hidden_layers: int, actor_lr: float, state_dim: int = 3, action_dim: int = 1, device: torch.device = torch.device('mps')):
+	def __init__(self, state_dim, action_dim = 1, hidden_size = 10, hidden_layers = 2, actor_lr = 1e-4, device: torch.device = torch.device('cpu')):
 		super(Actor, self).__init__()
 		self.hidden_size = hidden_size
 		self.hidden_layers = hidden_layers
@@ -57,7 +57,7 @@ class Actor(nn.Module):
 		# Take a look at the NeuralNetwork class in utils.py.
 		self.network = NeuralNetwork(
 			self.state_dim,
-			self.action_dim * 2,
+			self.action_dim,
 			self.hidden_size,
 			self.hidden_layers,
 			'relu').to(self.device)
@@ -79,38 +79,18 @@ class Actor(nn.Module):
 		:param action: torch.Tensor, action the policy returns for the state.
 		:param log_prob: log_probability of the the action.
 		'''
-		assert state.shape == (3,) or state.shape[1] == self.state_dim, 'State passed to this method has a wrong shape'
 		# TODO: Implement this function which returns an action and its log probability.
 		# If working with stochastic policies, make sure that its log_std are clamped 
 		# using the clamp_log_std function.
-		mu_logstd = self.network(state)
-		mu, log_prob = mu_logstd.chunk(2, dim=1)
-		log_prob = self.clamp_log_std(log_prob)
-		std = log_prob.exp()
-		
-		reparameter = Normal(mu, std)
-		x_t = reparameter.rsample()
-		y_t = torch.tanh(x_t)
-		action = y_t
-
-		# Enforcing Action Bound
-		log_prob = reparameter.log_prob(x_t)
-		log_prob = log_prob - torch.sum(torch.log((1 - y_t.pow(2)) + 1e-6), dim=-1, keepdim=True)
-
-		assert action.shape == (state.shape[0], self.action_dim) and \
-			log_prob.shape == (state.shape[0], self.action_dim), 'Incorrect shape for action or log_prob.'
-		# if deterministic:
-		#	 return torch.tanh(mu), log_prob
-		return action, log_prob
+		action = F.sigmoid(self.network(state))
+		return action
 
 
 class Critic(nn.Module):
 	"""
 	Q-function(s)
 	"""
-	def __init__(self, hidden_size: int,
-				hidden_layers: int, critic_lr: int, state_dim: int = 3,
-				action_dim: int = 1,device: torch.device = torch.device('cpu')):
+	def __init__(self, state_dim, action_dim, hidden_size = 10, hidden_layers = 2, critic_lr = 1e-4, device: torch.device = torch.device('cpu')):
 		super(Critic, self).__init__()
 		self.hidden_size = hidden_size
 		self.hidden_layers = hidden_layers
@@ -121,16 +101,12 @@ class Critic(nn.Module):
 		self.setup_critic()
 
 	def setup_critic(self):
-		self.network = NeuralNetwork(
-			self.state_dim + self.action_dim,
-			self.action_dim,
-			256,
-			2,
-			'relu')
+		self.network = NeuralNetwork(self.state_dim + self.action_dim, 1, self.hidden_size, self.hidden_layers, 'relu')
 		self.optimizer = optim.Adam(self.parameters(), lr=self.critic_lr)
 
-	def forward(self, x, a):
-		return self.network.forward(torch.cat([x, a], dim=-1))
+	def forward(self, s_a):
+		s_a_tensor = torch.Tensor(np.array(s_a))
+		return self.network.forward(s_a_tensor)
 
 
 class TrainableParameter:
