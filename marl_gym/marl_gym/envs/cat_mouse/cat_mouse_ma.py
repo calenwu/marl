@@ -10,7 +10,9 @@ class CatMouseMA(gym.Env):
 
     metadata = {'render_modes': ['human'], "render_fps": 4}
     
-    def __init__(self, area_size=(1,1), n_agents=2, n_mice=4, step_size=0.05, entity_size=0.05, observation_radius=0.2, step_cost = -0.1, render_mode='human', window_size=250):
+    def __init__(self, area_size=(1,1), n_agents=2, n_mice=4, step_size=0.05, 
+                 entity_size=0.05, observation_radius=0.2, communication_radius=0.2, 
+                 step_cost = -0.1, render_mode='human', window_size=250):
         
         self.area_size = area_size
         self.n_agents = n_agents
@@ -18,6 +20,7 @@ class CatMouseMA(gym.Env):
         self.step_size = step_size
         self.entity_size = entity_size
         self.observation_radius = observation_radius
+        self.communication_radius = communication_radius
         self.step_cost = step_cost
         self.window = None
         self.clock = None
@@ -39,10 +42,14 @@ class CatMouseMA(gym.Env):
     # observation state for agent i: (agents, mice), where agents/mice are arrays of 3-tuples, first 2 are position, 3rd is flag
     # for agent flag whether it's the current agent, for mice whether current agent saw it getting caught
     def _get_obs(self):
+
         agent_obs = []
+        communication = []
+
         for i in range(self.n_agents):
             # parse agent local observation from global state, if entity not seen then pos is (-1,-1)
             cur_agent_obs = []
+            cur_in_comm_range = []
             for j in range(self.n_agents):
                 if i == j:
                     cur_agent_obs.append((self.agents[j][0],self.agents[j][1], 1)) # set to one to let agent know its own position
@@ -50,6 +57,8 @@ class CatMouseMA(gym.Env):
                     cur_agent_obs.append((self.agents[j][0],self.agents[j][1], 0))
                 else:
                     cur_agent_obs.append((-1, -1, 0)) 
+                if self.agent_agent_comm_matrix[i][j]:
+                    cur_in_comm_range.append(j)
 
             cur_mice_obs = []
             for j in range(self.n_mice):
@@ -60,14 +69,16 @@ class CatMouseMA(gym.Env):
                     cur_mice_obs.append((-1, -1, obs_caught))
         
             agent_obs.append((cur_agent_obs,cur_mice_obs))
+            communication.append(cur_in_comm_range)
 
-        return agent_obs
+        return agent_obs, communication
 
     def reset(self):
         self.agents = [(np.random.uniform(),np.random.uniform()) for _ in range(self.n_agents)]
         self.mice = [(np.random.uniform(),np.random.uniform(), 0) for _ in range(self.n_mice)]
         self.agent_agent_obs_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.observation_radius)
         self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agents, self.mice, self.observation_radius)
+        self.agent_agent_comm_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.communication_radius)
         return self._get_obs()
 
     # action here should be 
@@ -87,16 +98,17 @@ class CatMouseMA(gym.Env):
         self.catch_matrix = self._calc_in_range_matrix(self.agents, self.mice, 2*self.entity_size)
         self.agent_agent_obs_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.observation_radius)
         self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agents, self.mice, self.observation_radius)
-        
+        self.agent_agent_comm_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.communication_radius)
+
         self._check_caught()
 
-        next_state = self._get_obs()
+        next_state, communication = self._get_obs()
 
         reward = self._calc_reward()
         
         terminated = all([caught for _,_,caught in self.mice])
 
-        return next_state, reward, terminated, info
+        return next_state, communication, reward, terminated, info
     
     # entity list (agent or mice)
     # returns matrix of shape (len(e_list1), len(e_list2))
@@ -189,7 +201,11 @@ class CatMouseMA(gym.Env):
 
         canvas.fill((255, 255, 255))
 
-        for a in self.agents:
+        # for checking if range matrices work
+        # pygame.font.init()
+        # my_font = pygame.font.SysFont('Comic Sans MS', 30)
+
+        for i,a in enumerate(self.agents):
             x,y,*_ = a
             x *= self.window_size
             y *= self.window_size
@@ -206,6 +222,9 @@ class CatMouseMA(gym.Env):
                 self.observation_radius*self.window_size,
                 width=1
             )
+            
+            # text_surface = my_font.render("{}".format(self.agent_mouse_obs_matrix[i].sum()), False, (0,0,0))
+            # canvas.blit(text_surface, (x,y))
         
         for m in self.mice:
             if m[2]:
