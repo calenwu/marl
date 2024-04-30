@@ -247,10 +247,7 @@ class MAPPO_MPE:
 				dist_now = Categorical(probs_now)
 				dist_entropy = dist_now.entropy()  # dist_entropy.shape=(mini_batch_size, episode_limit, N)
 				# batch['a_n'][index].shape=(mini_batch_size, episode_limit, N)
-				try:
-					a_logprob_n_now = dist_now.log_prob(batch['a_n'][index])  # a_logprob_n_now.shape=(mini_batch_size, episode_limit, N)
-				except:
-					a_logprob_n_now = torch.clamp(dist_now.log_prob(batch['a_n'][index]), 0, 4)
+				a_logprob_n_now = dist_now.log_prob(batch['a_n'][index])  # a_logprob_n_now.shape=(mini_batch_size, episode_limit, N)
 				# a/b=exp(log(a)-log(b))
 				ratios = torch.exp(a_logprob_n_now - batch['a_logprob_n'][index].detach())  # ratios.shape=(mini_batch_size, episode_limit, N)
 				surr1 = ratios * adv[index]
@@ -298,6 +295,5 @@ class MAPPO_MPE:
 		torch.save(self.actor.state_dict(), "./model{}/MAPPO_actor_env_{}_number_{}_seed_{}_step_{}k.pth".format(number, env_name, number, seed, int(total_steps / 1000)))
 
 	def load_model(self, env_name, number, seed, step):
-		print("./model{}/MAPPO_actor_env_{}_number_{}_seed_{}_step_{}k.pth".format(number, env_name, number, seed, step))
 		self.actor.load_state_dict(torch.load("./model{}/MAPPO_actor_env_{}_number_{}_seed_{}_step_{}k.pth".format(number, env_name, number, seed, step)))
 
