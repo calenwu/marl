@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 
@@ -52,8 +53,8 @@ class RolloutWorker:
 				last_action[agent_id] = action_onehot
 
 			_, reward, terminated, _ = self.env.step(actions)
-			# self.env.render()
-			# time.sleep(0.2)
+			self.env.render()
+			time.sleep(0.2)
 
 			obs_ep.append(obs)
 			state_ep.append(state)

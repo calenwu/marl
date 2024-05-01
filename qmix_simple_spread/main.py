@@ -81,7 +81,7 @@ class Runner:
 				self.agents.train(mini_batch, train_steps)
 				train_steps += 1
 
-		self.agents.policy.save_model(train_steps)
+		self.agents.policy.save_model(train_steps, end_training=True)
 
 		plt.cla()
 		plt.subplot(2, 1, 1)
@@ -97,6 +97,7 @@ class Runner:
 		plt.savefig(self.save_path + '/plt_{}_{}_{}ts.png'.format(num, self.args.env, self.args.n_steps), format='png')
 		np.save(self.save_path + '/episode_rewards_{}_{}_{}ts'.format(num, self.args.env, self.args.n_steps), episode_rewards)
 		np.save(self.save_path + '/win_rates_{}_{}_{}ts'.format(num, self.args.env, self.args.n_steps), win_rates)
+
 
 	def evaluate(self, epoch_num=None):
 		win_counter = 0
@@ -127,7 +128,7 @@ def common_args():
 	parser.add_argument('--optimizer', type=str, default="RMS", help='the optimizer')
 	parser.add_argument('--model_dir', type=str, default='./model', help='model directory of the policy')
 	parser.add_argument('--result_dir', type=str, default='./result', help='result directory of the policy')
-	parser.add_argument('--load_model', type=bool, default=False, help='whether to load the pretrained model')
+	parser.add_argument('--load_model', type=bool, default=True, help='whether to load the pretrained model')
 	parser.add_argument('--learn', type=bool, default=True, help='whether to train the model')
 	parser.add_argument('--evaluate_cycle', type=int, default=5000, help='how often to eval the model')
 	parser.add_argument('--target_update_cycle', type=int, default=200, help='how often to update the target network')
@@ -178,5 +179,6 @@ if __name__ == '__main__':
 
 	runner = Runner(env, args)
 	# parameterize run according to the number of independent experiments to run, i.e., independent sets of n_epochs over the model; default is 1
-	if args.learn:
-		runner.run(1)
+	# if args.learn:
+	# 	runner.run(1)
+	runner.evaluate(1)
