@@ -57,7 +57,7 @@ class Actor(nn.Module):
 		# Take a look at the NeuralNetwork class in utils.py.
 		self.network = NeuralNetwork(
 			self.state_dim,
-			self.action_dim,
+			2*self.action_dim,
 			self.hidden_size,
 			self.hidden_layers,
 			'relu').to(self.device)
@@ -71,7 +71,7 @@ class Actor(nn.Module):
 		'''
 		return torch.clamp(log_std, self.LOG_STD_MIN, self.LOG_STD_MAX)
 	
-	def forward(self, state: torch.Tensor, deterministic: bool) -> (torch.Tensor, torch.Tensor):
+	def forward(self, state: torch.Tensor) -> (torch.Tensor, torch.Tensor):
 		'''
 		:param state: torch.Tensor, state of the agent
 		:param deterministic: boolean, if true return a deterministic action otherwise sample from the policy distribution.
@@ -82,8 +82,16 @@ class Actor(nn.Module):
 		# TODO: Implement this function which returns an action and its log probability.
 		# If working with stochastic policies, make sure that its log_std are clamped 
 		# using the clamp_log_std function.
-		action = F.sigmoid(self.network(state))
-		return action
+		mu_log_std = self.network(state)
+		action = F.sigmoid(mu_log_std[0])
+		std = self.clamp_log_std(torch.exp(mu_log_std[1]))
+		return action, std
+	
+	def get_log_prob(self, s_t, a_t):
+		mu, std = self.forward(torch.Tensor(np.array(s_t)))
+		dist = torch.distributions.Normal(mu, std)
+		log_prob = dist.log_prob(torch.Tensor(np.array(a_t)))
+		return log_prob
 
 
 class Critic(nn.Module):
