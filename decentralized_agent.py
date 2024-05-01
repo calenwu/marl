@@ -38,7 +38,8 @@ class Agent:
 		#return random.uniform(0,1)
 		with torch.no_grad():
 			state_tensor = torch.Tensor(np.array(s)).to(self.device)
-			action = self.actor(state_tensor, train).cpu().numpy().squeeze(0)
+			action, _ = self.actor(state_tensor)
+			action = action.cpu().numpy().squeeze(0)
 		return np.atleast_1d(action)
 
 	@staticmethod
@@ -47,27 +48,28 @@ class Agent:
 		loss.mean().backward()
 		object.optimizer.step()
 
-	def update_mu(self, t, r):
-		beta = self.beta(t)
+	def update_mu(self, r):
+		beta = self.beta
 		self.mu = (1-beta) * self.mu + beta * r
 
 	def update_critic(self, s_t, a_t, s_tn, a_tn, r):
-		delta = r - self.mu + self.critic(s_tn, a_tn)-self.critic(s_t, a_t)
+		delta = r - self.mu + self.critic(s_tn+a_tn)-self.critic(s_t+a_t)
 		self.run_gradient_update_step(self.critic, delta)
 
-	def get_subset_actions(self):
-		subset_actions = []
-		for i in range(10):
-			subset_actions.append(random.uniform(0,1))
-
-	def update_actor(self, s_t, a_t):
+	def update_actor(self, s_t, a_t, num_samples = 25):
 		A = self.critic(s_t+a_t)
-		for a_i in self.get_subset_actions():
+		mu, std = self.actor.forward(torch.Tensor(np.array(s_t)).to(self.device))
+		actions = np.random.normal(loc=mu.detach().numpy(), scale=std.detach().numpy(), size = num_samples)
+		for a_i in actions:
 			a = a_t
-			a[self.agent_id] = a_i
-			# This has to be changed to pi(a_i|s)
-			A -= 1/10*self.critic(s_t, a_t) #self.actor.get_prob(s_t, a_i)
-		self.run_gradient_update_step(self.actor, A)
+			a[self.agent_id] = a_i % 1.0
+			A -= 1/num_samples*self.critic(s_t+a)
+		log_prob = self.actor.get_log_prob(s_t, a_t[self.agent_id])
+		
+		psi = torch.autograd.grad(log_prob, self.actor.parameters(), retain_graph = True)
+		psi = [A * grad for grad in psi]
+		for param, grad in zip(self.actor.parameters(), psi):
+			param.data.add(self.beta * grad)
 
 	def get_omega(self):
 		return self.critic.parameters()
