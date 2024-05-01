@@ -1,4 +1,5 @@
 import copy
+from typing import List
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -55,19 +56,24 @@ class Agent:
 		delta = r - self.mu + self.critic(s_tn, a_tn)-self.critic(s_t, a_t)
 		self.run_gradient_update_step(self.critic, delta)
 
-	def get_subset_actions(self):
+	def get_subset_actions(self) -> List:
 		subset_actions = []
 		for i in range(10):
 			subset_actions.append(random.uniform(0,1))
+		return subset_actions
 
 	def update_actor(self, s_t, a_t):
-		A = self.critic(s_t+a_t)
+		A = self.critic(s_t + a_t)
 		for a_i in self.get_subset_actions():
-			a = a_t
+			a = a_t.clone()
 			a[self.agent_id] = a_i
 			# This has to be changed to pi(a_i|s)
-			A -= 1/10*self.critic(s_t, a_t) #self.actor.get_prob(s_t, a_i)
+			prob = self.actor.get_prob(s_t, a_i)
+			A -= prob * self.critic(s_t + a_t) #self.actor.get_prob(s_t, a_i)
 		self.run_gradient_update_step(self.actor, A)
+		A_grad = torch.autograd.grad(A, self.actor.parameters(), retain_graph=True)
+		for param, grad in zip(self.actor.parameters(), A_grad):
+			param.data.add_(self.beta * grad)  # update the actor parameters
 
 	def get_omega(self):
 		return self.critic.parameters()

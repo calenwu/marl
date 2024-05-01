@@ -59,15 +59,15 @@ if not os.path.exists(gif_dir):
 gif_num = len([file for file in os.listdir(gif_dir)])  # current number of gif
 
 runner = Runner_MAPPO_MPE(args, env_name='simple_spread_v3', number=3, seed=0)
-runner.agent_n.load_model('simple_spread_v3', number=3, seed=0, step=3000)
+runner.agent_n.load_model('simple_spread_v3', number=3, seed=0, step=3435)
 
 agent_num = runner.args.N
 # reward of each episode of each agent
 episode_rewards = {agent: np.zeros(args.max_train_steps) for agent in range(agent_num)}
 for x in range(5):
-	states, infos = runner.env.reset()
+	states = runner.env.reset()
 for episode in range(5):
-	states, infos = runner.env.reset()
+	states = runner.env.reset()
 
 
 	agent_reward = {agent: 0 for agent in range(agent_num)}  # agent reward of the current episode
@@ -80,7 +80,7 @@ for episode in range(5):
 		# actions = {}
 		# for i, agent in enumerate(runner.env.agents):
 		# 	actions[agent] = a_n[i]
-		next_states, rewards, dones, _ = runner.env.step(a_n)
+		next_states, rewards, dones, _ = runner.env.step(a_n[0] if episode_step == 0 else a_n)
 		time.sleep(0.5)
 		runner.env.render()
 		# frame_list.append(Image.fromarray(runner.env.render()))  # 第二次frame_list=[]时报错

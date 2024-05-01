@@ -12,5 +12,3 @@ for _ in range(100):
     env.render()
 
 env.close()
-    
-    

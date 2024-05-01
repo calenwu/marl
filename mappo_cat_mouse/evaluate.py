@@ -46,8 +46,8 @@ parser.add_argument('--reward_path', type=str,
 					help='File path to my rewards file')
 parser.add_argument('--result_path', type=str,
 					default=resultpath, help='File path to my result')
-parser.add_argument('--render_mode', type=str,
-					default='rgb_array', help='File path to my result')
+# parser.add_argument('--render_mode', type=str, default='rgb_array', help='File path to my result')
+parser.add_argument('--render_mode', type=str, default='human', help='File path to my result')
 
 args = parser.parse_args()
 result_dir = args.result_path
@@ -58,52 +58,57 @@ if not os.path.exists(gif_dir):
 	os.makedirs(gif_dir)
 gif_num = len([file for file in os.listdir(gif_dir)])  # current number of gif
 
-runner = Runner_MAPPO_MPE(args, env_name='lumberjacks_v0', number=3, seed=0)
-runner.agent_n.load_model('lumberjacks_v0', number=3, seed=0, step=60)
+runner = Runner_MAPPO_MPE(args, env_name='simple_spread_v3', number=3, seed=0)
+runner.agent_n.load_model('simple_spread_v3', number=3, seed=0, step=3000)
 
-agent_num = runner.env.n_agents
+agent_num = runner.args.N
 # reward of each episode of each agent
+episode_rewards = {agent: np.zeros(args.max_train_steps) for agent in range(agent_num)}
+for x in range(5):
+	states, infos = runner.env.reset()
 for episode in range(5):
 	states, infos = runner.env.reset()
-	states = np.array([states, states])
 
 
-	# agent_reward = {agent: 0 for agent in runner.env.agents}  # agent reward of the current episode
+	agent_reward = {agent: 0 for agent in range(agent_num)}  # agent reward of the current episode
 	frame_list = []  # used to save gif
-	tot_reward = 0
+
+	states = np.array([states, states])
 	for episode_step in range(runner.args.episode_limit):
 		a_n, _ = runner.agent_n.choose_action(states, evaluate=True)
 		# need to transit 'a_n' into dict
+		# actions = {}
+		# for i, agent in enumerate(runner.env.agents):
+		# 	actions[agent] = a_n[i]
 		next_states, rewards, dones, _ = runner.env.step(a_n)
 		time.sleep(0.5)
-		print(a_n)
 		runner.env.render()
 		# frame_list.append(Image.fromarray(runner.env.render()))  # 第二次frame_list=[]时报错
-		states = next_states
+		states = np.array(next_states)
 
-		# for reward in rewards.items():  # update reward
-		# 	agent_reward[agent_id] += reward
-		tot_reward = sum(rewards)
+		for agent_id, reward in enumerate(rewards):  # update reward
+			agent_reward[agent_id] += reward
+
 	# env.close()
-	message = f'episode {episode + 1}, {tot_reward}'
-	print(message)
+	message = f'episode {episode + 1}, '
 	# episode finishes, record reward
-	# for agent_id, reward in agent_reward.items():
-	# 	message += f'{agent_id}: {reward:>4f}; '
-	# print(message)
+	for agent_id, reward in agent_reward.items():
+		episode_rewards[agent_id][episode] = reward
+		message += f'{agent_id}: {reward:>4f}; '
+	print(message)
 	# save gif
-	# frame_list[0].save(os.path.join(gif_dir, f'out{gif_num + episode + 1}.gif'),
-	# 				   save_all=True, append_images=frame_list[1:], duration=1, loop=0)
+	frame_list[0].save(os.path.join(gif_dir, f'out{gif_num + episode + 1}.gif'),
+					   save_all=True, append_images=frame_list[1:], duration=1, loop=0)
 
 
-# rewards = np.load(args.reward_path)
-# # print(np.shape(rewards))  # shape:(601,)
-# fig, ax = plt.subplots()
-# x = range(1, np.shape(rewards)[0]+1)
-# ax.plot(x, rewards, label='agent0_1_2')
-# ax.legend()
-# ax.set_xlabel('episode')
-# ax.set_ylabel('reward')
-# title = f'evaluate result of mappo'
-# ax.set_title(title)
-# plt.show()
+rewards = np.load(args.reward_path)
+# print(np.shape(rewards))  # shape:(601,)
+fig, ax = plt.subplots()
+x = range(1, np.shape(rewards)[0]+1)
+ax.plot(x, rewards, label='agent0_1_2')
+ax.legend()
+ax.set_xlabel('episode')
+ax.set_ylabel('reward')
+title = f'evaluate result of mappo'
+ax.set_title(title)
+plt.show()
