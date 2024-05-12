@@ -27,20 +27,19 @@ class Agent:
 		self.setup_agent()
 
 	def setup_agent(self):
-		self.actor = actor_critic.Actor(self.state_dim)
-		self.critic = actor_critic.Critic(self.state_dim, self.action_dim*self.num_agents).to(self.device)
+		self.actor = actor_critic.Actor(self.state_dim, self.action_dim).to(self.device)
+		self.critic = actor_critic.Critic(self.state_dim, self.num_agents).to(self.device)
 
-	def choose_action(self, s):
+	"""def choose_action(self, s):
 		with torch.no_grad():
-			action, log_prob = self.actor(s.to(self.device), False)
-		return action, log_prob
+			action_prob = self.actor(s.to(self.device), False)
+		return np.argmax(np.array(action_prob))"""
 
 	def get_action(self, s, train = True) -> np.ndarray:
-		#return random.uniform(0,1)
 		with torch.no_grad():
 			state_tensor = torch.Tensor(np.array(s)).to(self.device)
-			action, _ = self.actor(state_tensor)
-			action = action.cpu().numpy().squeeze(0)
+			action_prob = self.actor(state_tensor)
+			action = np.argmax(np.array(action_prob))
 		return np.atleast_1d(action)
 
 	@staticmethod
@@ -57,15 +56,18 @@ class Agent:
 		delta = r - self.mu + self.critic(s_tn+a_tn)-self.critic(s_t+a_t)
 		self.run_gradient_update_step(self.critic, delta)
 
+	def get_all_actions(self):
+		return range(self.action_dim)
+
 	def update_actor(self, s_t, a_t, num_samples = 25):
 		A = self.critic(s_t+a_t)
-		mu, std = self.actor.forward(torch.Tensor(np.array(s_t)).to(self.device))
-		actions = np.random.normal(loc=mu.detach().numpy(), scale=std.detach().numpy(), size = num_samples)
+		action_probs = self.actor.forward(torch.Tensor(np.array(s_t)).to(self.device))
+		actions = self.get_all_actions()
 		for a_i in actions:
 			a = a_t
-			a[self.agent_id] = a_i % 1.0
-			A -= 1/num_samples*self.critic(s_t+a)
-		log_prob = self.actor.get_log_prob(s_t, a_t[self.agent_id])
+			a[self.agent_id] = a_i
+			A -= action_probs[a_i]*self.critic(s_t+a)
+		log_prob = torch.log(self.actor.get_prob(s_t, a_t[self.agent_id]))
 		
 		psi = torch.autograd.grad(log_prob, self.actor.parameters(), retain_graph = True)
 		psi = [A * grad for grad in psi]

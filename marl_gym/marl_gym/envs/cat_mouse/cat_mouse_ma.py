@@ -38,6 +38,21 @@ class CatMouseMA(gym.Env):
 
         self.reset()
 
+    def _get_global_obs(self):
+        obs_agents = []
+        obs_mice = []
+        for i in range(self.n_agents):
+            obs_agents.append((self.agents[i][0],self.agents[i][1]))
+
+        for i in range(self.n_mice):
+            mouse_i_caught = 0
+            for j in range(self.n_agents):
+                obs_caught = i in self.agent_mice_list[j]
+                if obs_caught == 1:
+                    mouse_i_caught = 1
+                    break
+            obs_mice.append((self.mice[i][0],self.mice[i][1], mouse_i_caught))
+        return (obs_agents, obs_mice)
     # turn env state into observation state
     # observation state for agent i: (agents, mice), where agents/mice are arrays of 3-tuples, first 2 are position, 3rd is flag
     # for agent flag whether it's the current agent, for mice whether current agent saw it getting caught

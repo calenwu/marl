@@ -37,7 +37,7 @@ class Actor(nn.Module):
 	"""
 	Policy
 	"""
-	def __init__(self, state_dim, action_dim = 1, hidden_size = 10, hidden_layers = 2, actor_lr = 1e-4, device: torch.device = torch.device('cpu')):
+	def __init__(self, state_dim, action_dim, hidden_size = 10, hidden_layers = 1, actor_lr = 1e-4, device: torch.device = torch.device('cpu')):
 		super(Actor, self).__init__()
 		self.hidden_size = hidden_size
 		self.hidden_layers = hidden_layers
@@ -57,7 +57,7 @@ class Actor(nn.Module):
 		# Take a look at the NeuralNetwork class in utils.py.
 		self.network = NeuralNetwork(
 			self.state_dim,
-			2*self.action_dim,
+			self.action_dim,
 			self.hidden_size,
 			self.hidden_layers,
 			'relu').to(self.device)
@@ -82,16 +82,14 @@ class Actor(nn.Module):
 		# TODO: Implement this function which returns an action and its log probability.
 		# If working with stochastic policies, make sure that its log_std are clamped 
 		# using the clamp_log_std function.
-		mu_log_std = self.network(state)
-		action = F.sigmoid(mu_log_std[0])
-		std = self.clamp_log_std(torch.exp(mu_log_std[1]))
-		return action, std
+		output = self.network(state)
+		action_probs = F.softmax(output)
+		return action_probs
 	
-	def get_log_prob(self, s_t, a_t):
-		mu, std = self.forward(torch.Tensor(np.array(s_t)))
-		dist = torch.distributions.Normal(mu, std)
-		log_prob = dist.log_prob(torch.Tensor(np.array(a_t)))
-		return log_prob
+	def get_prob(self, s_t, a_t):
+		action_probs = self.forward(torch.Tensor(np.array(s_t)))
+		prob = action_probs[a_t]
+		return prob
 
 
 class Critic(nn.Module):

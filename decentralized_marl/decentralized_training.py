@@ -1,0 +1,126 @@
+import decentralized_agent
+import matplotlib.pyplot as plt
+from pettingzoo.mpe import simple_spread_v3
+import sys
+import time
+sys.path.append("../")
+from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import *
+from marl_gym.marl_gym.envs.cat_mouse.cat_mouse import *
+
+class Decentralized:
+
+    def __init__(self, state_dim, action_dim, num_agents, env, env_name = None):
+        self.num_agents = num_agents
+        self.agents = []
+        self.env = env
+        self.env_name = env_name
+        for i in range(num_agents):
+            agent_i = decentralized_agent.Agent(state_dim=state_dim, action_dim=action_dim, num_agents=num_agents, agent_id=i, mu_0=0, beta=1e-4)
+            self.agents.append(agent_i)
+
+    def get_actions(self, s):
+        actions = []
+        for ag in self.agents:
+            a_i = ag.get_action(s)[0]
+            actions.append(a_i)
+        return actions
+    
+    def get_critic_values(self, s_a):
+        critic_values = []
+        for ag in self.agents:
+            c_i = ag.critic(s_a)
+            critic_values.append(c_i)
+        return critic_values
+    
+    def state_to_array(self, state):
+        state_list = []
+        for tuple in state:
+            for i in range(len(tuple)):
+                state_list.append(tuple[i])
+        return state_list
+    
+    def state_to_array_lumber(self, state):
+        state_list = []
+        for agent in state[0]:
+            state_list.append(agent[0])
+            state_list.append(agent[1])
+        for tree in state[1]:
+            state_list.append(tree[0][0])
+            state_list.append(tree[0][1])
+            state_list.append(tree[1])
+        return state_list
+
+    def train(self, num_episodes, num_iterations):
+        average_reward = []
+        for ep in range(num_episodes):
+            reward_ep = 0
+            dicount = 0.99
+            #s_t = self.env._get_obs()
+            #s_t = self.state_to_array(s_t[0]+s_t[1])
+            self.env.reset()
+            s_t = self.state_to_array_lumber(self.env.get_global_obs())
+            a_t = self.get_actions(s_t)
+            for t in range(num_iterations):
+                next_state, reward, terminated, info = self.env.step(a_t)
+                #next_state = self.state_to_array(next_state[0]+next_state[1])
+                next_state = self.state_to_array_lumber(self.env.get_global_obs())
+                if terminated:
+                    break
+                for i in range(self.num_agents):
+                    self.agents[i].update_mu(reward)
+
+                next_actions = []
+                next_actions = self.get_actions(next_state)
+                for i in range(self.num_agents):
+                    # Change to local reward
+                    self.agents[i].update_actor(next_state, next_actions)
+                    self.agents[i].update_critic(s_t, a_t, next_state, next_actions, reward)
+                """
+                # Communication update
+                con = env.get_connections(s_tn)
+
+                for i in range(n_agents):
+                    omega_i = decentralized.agents[i].get_omega()
+                    for j in range(con[i]):
+                        omega_i += decentralized.agents[j].get_omega()
+                    decentralized.agents[i].set_omega(omega_i/(len(con[i])+1))
+                """
+                s_t = next_state
+                a_t = next_actions
+                reward_ep += dicount*reward
+                dicount *= 0.99
+            average_reward.append(reward_ep)
+        
+
+
+def train_cat_mouse():
+    n_agents = 2
+    n_mice = 4
+    env = CatMouse(n_agents=n_agents, n_mice=n_mice) #render_mode='human'
+    decentralized = Decentralized(state_dim=2*n_agents+3*n_mice, action_dim=1, num_agents=n_agents, env=env)
+    decentralized.train(num_iterations=1000, num_episodes=100)
+
+def train_coorperative_navigation():
+    env = simple_spread_v3.parallel_env(N=3, max_cycles=100, local_ratio=0.5,  continuous_actions=False)
+	#env.reset(seed=42)
+
+def train_lumberjack():
+    n_agents = 2
+    n_trees = 10
+    env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(6, 6), n_agents=n_agents, n_trees=n_trees)
+    env.reset()
+    decentralized = Decentralized(state_dim=2*n_agents+3*n_trees, action_dim=5, num_agents=n_agents, env=env)
+    decentralized.train(num_iterations=50, num_episodes=25000)
+    state = env.get_global_obs()
+    for i in range(100):
+        action = decentralized.get_actions(decentralized.state_to_array_lumber(state))
+        print(action)
+        agent_obs, rewards, terminated, info = env.step(action)
+        state = env.get_global_obs()
+        env.render()
+        time.sleep(0.5)
+
+def __main__():
+    train_lumberjack()
+
+__main__()
