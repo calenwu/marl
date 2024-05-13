@@ -2,7 +2,11 @@ import decentralized_agent
 import matplotlib.pyplot as plt
 from pettingzoo.mpe import simple_spread_v3
 import sys
+from tqdm import tqdm
 import time
+import warnings
+import torch
+warnings.filterwarnings("ignore")
 sys.path.append("../")
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import *
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse import *
@@ -15,7 +19,7 @@ class Decentralized:
         self.env = env
         self.env_name = env_name
         for i in range(num_agents):
-            agent_i = decentralized_agent.Agent(state_dim=state_dim, action_dim=action_dim, num_agents=num_agents, agent_id=i, mu_0=0, beta=1e-4)
+            agent_i = decentralized_agent.Agent(state_dim=state_dim, action_dim=action_dim, num_agents=num_agents, agent_id=i, mu_0=0, beta=1e-2)
             self.agents.append(agent_i)
 
     def get_actions(self, s):
@@ -50,49 +54,64 @@ class Decentralized:
             state_list.append(tree[1])
         return state_list
 
-    def train(self, num_episodes, num_iterations):
+    def save(self, path):
+        for i in range(self.num_agents):
+            torch.save(self.agents[i].actor.network.state_dict(), path+f"agent_{i}_actor")
+            torch.save(self.agents[i].critic.network.state_dict(), path+f"agent_{i}_critic")
+
+    def load(self, path):
+        for i in range(self.num_agents):
+            self.agents[i].actor.network.load_state_dict(torch.load(path+f"agent_{i}_actor"))
+            self.agents[i].critic.network.load_state_dict(torch.load(path+f"agent_{i}_critic"))
+
+    def train(self, num_episodes = 100, num_iterations = 25):
         average_reward = []
-        for ep in range(num_episodes):
+        for ep in tqdm(range(num_episodes)):
             reward_ep = 0
             dicount = 0.99
-            #s_t = self.env._get_obs()
-            #s_t = self.state_to_array(s_t[0]+s_t[1])
             self.env.reset()
             s_t = self.state_to_array_lumber(self.env.get_global_obs())
             a_t = self.get_actions(s_t)
+            for i in range(self.num_agents):
+                self.agents[i].mu = 0
+            
             for t in range(num_iterations):
                 next_state, reward, terminated, info = self.env.step(a_t)
-                #next_state = self.state_to_array(next_state[0]+next_state[1])
                 next_state = self.state_to_array_lumber(self.env.get_global_obs())
-                if terminated:
+
+                if np.all(np.array(terminated)):
                     break
                 for i in range(self.num_agents):
-                    self.agents[i].update_mu(reward)
+                    self.agents[i].update_mu(reward[i])
 
                 next_actions = []
                 next_actions = self.get_actions(next_state)
                 for i in range(self.num_agents):
-                    # Change to local reward
                     self.agents[i].update_actor(next_state, next_actions)
-                    self.agents[i].update_critic(s_t, a_t, next_state, next_actions, reward)
-                """
-                # Communication update
-                con = env.get_connections(s_tn)
-
-                for i in range(n_agents):
-                    omega_i = decentralized.agents[i].get_omega()
-                    for j in range(con[i]):
-                        omega_i += decentralized.agents[j].get_omega()
-                    decentralized.agents[i].set_omega(omega_i/(len(con[i])+1))
-                """
+                    self.agents[i].update_critic(s_t, a_t, next_state, next_actions, reward[i])
+                
                 s_t = next_state
                 a_t = next_actions
-                reward_ep += dicount*reward
+                # Communication update
+                con = self.env._get_connections()
+                for i in range(self.num_agents):
+                    omega_i = [self.agents[i].critic]
+                    for j in con[i]:
+                        if i == i:
+                            continue
+                        omega_i += [self.agents[j].critic]
+                    self.agents[i].set_omega(omega_i)
+                for i in range(self.num_agents):
+                    self.agents[i].update_omega()
+                # Store commulative error
+                reward_all = 0
+                for i in range(self.num_agents):
+                    reward_all += reward[i]
+                reward_ep += dicount*reward_all
                 dicount *= 0.99
             average_reward.append(reward_ep)
+        return average_reward
         
-
-
 def train_cat_mouse():
     n_agents = 2
     n_mice = 4
@@ -105,20 +124,27 @@ def train_coorperative_navigation():
 	#env.reset(seed=42)
 
 def train_lumberjack():
-    n_agents = 2
-    n_trees = 10
-    env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(6, 6), n_agents=n_agents, n_trees=n_trees)
+    n_agents = 1
+    n_trees = 3
+    env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(3, 3), n_agents=n_agents, n_trees=n_trees)
     env.reset()
     decentralized = Decentralized(state_dim=2*n_agents+3*n_trees, action_dim=5, num_agents=n_agents, env=env)
-    decentralized.train(num_iterations=50, num_episodes=25000)
+    average_reward = decentralized.train(num_iterations=25, num_episodes=1)
+    #plt.plot(average_reward)
+    #plt.savefig("Plots/average_reward.png")
+    decentralized.save('checkpoints/test/')
+    decentralized.load('checkpoints/test/')
+    for param in decentralized.agents[0].critic.network.parameters():
+        print(param)
     state = env.get_global_obs()
-    for i in range(100):
+    """for i in range(100):
         action = decentralized.get_actions(decentralized.state_to_array_lumber(state))
-        print(action)
+        for j in range(5):
+            print(decentralized.get_critic_values(decentralized.state_to_array_lumber(state)+[j]))
         agent_obs, rewards, terminated, info = env.step(action)
         state = env.get_global_obs()
         env.render()
-        time.sleep(0.5)
+        time.sleep(2)"""
 
 def __main__():
     train_lumberjack()
