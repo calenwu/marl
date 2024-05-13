@@ -6,9 +6,10 @@ env = CatMouseMA()
 state = env.reset()
 for _ in range(100):
     action = env.action_space.sample()
-    # communication_list only returned for CatMouseMA
-    next_state, communication_list, reward, terminated, info = env.step(action)
+    next_state, reward, terminated, truncated, info = env.step(action)
     state = next_state
     env.render()
 
 env.close()
+    
+    

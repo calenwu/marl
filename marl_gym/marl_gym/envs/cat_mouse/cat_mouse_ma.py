@@ -4,99 +4,111 @@ from marl_gym.marl_gym.envs.utils.utils import * # maybe need to change if made 
 import numpy as np
 import math
 import pygame
+import copy
 
-# multi-agent version
 class CatMouseMA(gym.Env):
 
     metadata = {'render_modes': ['human'], "render_fps": 4}
     
-    def __init__(self, area_size=(1,1), n_agents=2, n_mice=4, step_size=0.05, 
+    def __init__(self, max_iter=None, n_agents=2, n_prey=4, step_size=0.05, 
                  entity_size=0.05, observation_radius=0.2, communication_radius=0.2, 
-                 step_cost = -0.1, render_mode='human', window_size=250):
+                 step_cost = -0.1, window_size=250):
         
-        self.area_size = area_size
+        self.max_iter = max_iter
         self.n_agents = n_agents
-        self.n_mice = n_mice
+        self.n_prey = n_prey
         self.step_size = step_size
         self.entity_size = entity_size
+        self.catch_range = 2 * self.entity_size
         self.observation_radius = observation_radius
         self.communication_radius = communication_radius
         self.step_cost = step_cost
+        self.window_size = window_size
         self.window = None
         self.clock = None
-        self.window_size = window_size
+        self.steps = 0
         
-        # need to figure out spaces
-        self.observation_space = MultiAgentObservationSpace([spaces.Tuple((spaces.Box(0,1,shape=(self.n_agents,3)),spaces.Box(0,1,shape=(self.n_mice,3)))) for _ in range(self.n_agents + self.n_mice)])
-        # MAOS is just wrapper for list so we can use sample
         self.action_space = spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=np.float32)
-
-        self.render_mode = render_mode
+        self.observation_space = MultiAgentObservationSpace([spaces.Dict({
+            "agents": spaces.Dict({
+                "position": spaces.Box(low=0,high=1,shape=(self.n_agents,2)),
+                "cur_agent": spaces.MultiBinary(self.n_agents),
+            }),
+            "prey": spaces.Dict({
+                "position": spaces.Box(low=0,high=1,shape=(self.n_prey,2)),
+                "caught": spaces.MultiBinary(self.n_prey),
+            })
+        }) for _ in range(self.n_agents)])
         
-        # for each agent, which mice agent knows are caught already
-        self.agent_mice_list = [[] for _ in range(self.n_agents)]
+        # entry i contains list of mice, which agent i saw (was in observation radius) get caught
+        self.agent_prey_list = [[] for _ in range(self.n_agents)]
 
         self.reset()
 
-    def _get_global_obs(self):
-        obs_agents = []
-        obs_mice = []
-        for i in range(self.n_agents):
-            obs_agents.append((self.agents[i][0],self.agents[i][1]))
-
-        for i in range(self.n_mice):
-            mouse_i_caught = 0
-            for j in range(self.n_agents):
-                obs_caught = i in self.agent_mice_list[j]
-                if obs_caught == 1:
-                    mouse_i_caught = 1
-                    break
-            obs_mice.append((self.mice[i][0],self.mice[i][1], mouse_i_caught))
-        return (obs_agents, obs_mice)
+    def get_global_obs(self):
+        """
+        Returns environment state
+        """
+        return {"agents": self.agents, "prey": self.prey}
+    
     # turn env state into observation state
-    # observation state for agent i: (agents, mice), where agents/mice are arrays of 3-tuples, first 2 are position, 3rd is flag
-    # for agent flag whether it's the current agent, for mice whether current agent saw it getting caught
+    # observation state for agent i: (agents, prey), where agents/prey are arrays of 3-tuples, first 2 are position, 3rd is flag
+    # for agent flag whether it's the current agent, for prey whether current agent saw it getting caught
     def _get_obs(self):
-
+        """
+        Turns environment state into local observation state. Each agent's observation contains positions of other agent's and prey.
+        If either are outside the observation radius, their position is set to (-1,-1). The cur_agent flag is set to True, if the
+        agent matches the observation number.
+        :return: Observation space according to self.observation_space
+        """
         agent_obs = []
         communication = []
-
         for i in range(self.n_agents):
-            # parse agent local observation from global state, if entity not seen then pos is (-1,-1)
-            cur_agent_obs = []
+
+            cur_agent_obs = {}
             cur_in_comm_range = []
+            
+            cur_agent_agent_obs = copy.deepcopy(self.agents)
+            cur_agent_agent_obs["cur_agent"] = np.zeros(self.n_agents)
             for j in range(self.n_agents):
+
                 if i == j:
-                    cur_agent_obs.append((self.agents[j][0],self.agents[j][1], 1)) # set to one to let agent know its own position
-                elif self.agent_agent_obs_matrix[i][j]:
-                    cur_agent_obs.append((self.agents[j][0],self.agents[j][1], 0))
-                else:
-                    cur_agent_obs.append((-1, -1, 0)) 
+                    cur_agent_agent_obs["cur_agent"][j] = 1
+                if not self.agent_agent_obs_matrix[i][j]:
+                    cur_agent_agent_obs["position"][j][0] = -1
+                    cur_agent_agent_obs["position"][j][1] = -1
                 if self.agent_agent_comm_matrix[i][j]:
                     cur_in_comm_range.append(j)
 
-            cur_mice_obs = []
-            for j in range(self.n_mice):
-                obs_caught = j in self.agent_mice_list[i] # set mouse caught flag to 1 to indicate it observed mouse getting caught
-                if self.agent_mouse_obs_matrix[i][j]:
-                    cur_mice_obs.append((self.mice[j][0], self.mice[j][1], obs_caught))
-                else:
-                    cur_mice_obs.append((-1, -1, obs_caught))
-        
-            agent_obs.append((cur_agent_obs,cur_mice_obs))
+            cur_agent_prey_obs = copy.deepcopy(self.prey)
+            for j in range(self.n_prey):
+                # set mouse caught flag to 1 to indicate it observed mouse getting caught
+                obs_caught = int(j in self.agent_prey_list[i])
+
+                if not self.agent_mouse_obs_matrix[i][j]:
+                    cur_agent_prey_obs["position"][j][0] = -1
+                    cur_agent_prey_obs["position"][j][1] = -1
+
+                cur_agent_prey_obs["caught"] = obs_caught
+
+            cur_agent_obs["agents"] = cur_agent_agent_obs
+            cur_agent_obs["caught"] = cur_agent_prey_obs
+            agent_obs.append(cur_agent_obs)
             communication.append(cur_in_comm_range)
 
         return agent_obs, communication
 
     def reset(self):
-        self.agents = [(np.random.uniform(),np.random.uniform()) for _ in range(self.n_agents)]
-        self.mice = [(np.random.uniform(),np.random.uniform(), 0) for _ in range(self.n_mice)]
-        self.agent_agent_obs_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.observation_radius)
-        self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agents, self.mice, self.observation_radius)
-        self.agent_agent_comm_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.communication_radius)
+        self.agents = {"position": np.random.rand(self.n_agents,2)}
+        self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
+        # need to calculate matrices for get_obs
+        agent_agent_dists = self._calc_dists(self.agents["position"], self.agents["position"])
+        self.agent_prey_dists = self._calc_dists(self.agents["position"], self.prey["position"])
+        self.agent_agent_obs_matrix = self._calc_in_range_matrix(agent_agent_dists, self.observation_radius)
+        self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agent_prey_dists, self.observation_radius)
+        self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
         return self._get_obs()
 
-    # action here should be 
     def step(self, action):
         assert len(action) == self.n_agents, "action length should be number of agents"
 
@@ -105,15 +117,18 @@ class CatMouseMA(gym.Env):
         terminated = False
         info = {}
 
+        # move each agent according to action array
         self._move_agents(action)
+        # assume uniform random movement of mouse rn, move each mouse
+        self._move_prey()
 
-        self._move_mice()
-
-        # calculate boolean matrices indicating whether in catch/observation range
-        self.catch_matrix = self._calc_in_range_matrix(self.agents, self.mice, 2*self.entity_size)
-        self.agent_agent_obs_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.observation_radius)
-        self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agents, self.mice, self.observation_radius)
-        self.agent_agent_comm_matrix = self._calc_in_range_matrix(self.agents, self.agents, self.communication_radius)
+        # calculate boolean matrices indicating whether in catch/observation/communication range
+        agent_agent_dists = self._calc_dists(self.agents["position"], self.agents["position"])
+        self.agent_prey_dists = self._calc_dists(self.agents["position"], self.prey["position"])
+        self.agent_prey_caught = self._calc_in_range_matrix(self.agent_prey_dists, self.catch_range)
+        self.agent_agent_obs_matrix = self._calc_in_range_matrix(agent_agent_dists, self.observation_radius)
+        self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agent_prey_dists, self.observation_radius)
+        self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
 
         self._check_caught()
 
@@ -121,25 +136,40 @@ class CatMouseMA(gym.Env):
 
         reward = self._calc_reward()
         
-        terminated = all([caught for _,_,caught in self.mice])
+        terminated = np.all(self.prey["caught"])
 
-        return next_state, communication, reward, terminated, info
+        truncated = False
+
+        self.steps =+ 1
+        if self.max_iter:
+            truncated = self.steps < self.max_iter
+
+        info["comm_partners"] = communication
+
+        return next_state, reward, terminated, truncated, info
     
-    # entity list (agent or mice)
-    # returns matrix of shape (len(e_list1), len(e_list2))
-    # where entry [i,j] tells us whether entry i and entry j 
-    # of their respective arrays are within given range or not 
-    def _calc_in_range_matrix(self, list1, list2, range):
-        x = self._calc_dists(list1,list2)
-        x = x < range
+    def _calc_in_range_matrix(self, dists, range):
+        """
+        Calculates a matrix containing boolean values indicating wether the entities of the two given
+        lists (length N and M respecitvely) are in range (euclidean distance) of each other or not.
+        :param dists: numpy array of shape (N,M), containing euclidean distances between entities
+        :param range: int denoting range
+        :return: numpy array of shape (N,M), each entry indicates whether entity of list1 is in range
+                 of entity of list2
+        """
+        x = dists < range
         return x
     
-    def _calc_dists(self, list1,list2):
-        t1 = np.array(list1)[:,:2]
-        t2 = np.array(list2)[:,:2]
-        t1 = t1[:,np.newaxis,:]
-        t2 = t2[np.newaxis,:]
-
+    def _calc_dists(self, list1, list2):
+        """
+        Calculates euclidean distances between two lists of (x,y) positions.
+        :param list1: numpy array of shape (N,2), each entry corresponds to (x,y) position of entity
+        :param list2: numpy array of shape (M,2), each entry corresponds to (x,y) position of entity
+        :return: numpy array of shape (N,M), each entry indicates the euclidean distance between entity 
+                 of list1 and entity of list2
+        """
+        t1 = list1[:,np.newaxis,:]
+        t2 = list2[np.newaxis,:]
         x = t1 - t2
         x = x**2
         x = x[:,:,0] + x[:,:,1]
@@ -147,64 +177,70 @@ class CatMouseMA(gym.Env):
         return x
     
     def _move_agents(self, action):
-        # move each agent according to action
+        """
+        Moves agents' positions according to action.
+        :param action: np array of shape (self.n_agent,)
+        """
         for i,a in enumerate(action):
             direction = 2* np.pi * a
             move_x = self.step_size * math.cos(direction)
             move_y = self.step_size * math.sin(direction)
-            cur_x, cur_y = self.agents[i]
-            self.agents[i] = (min(max(0,cur_x + move_x),1), max(min(1, cur_y + move_y),0)) # clip between 0 and 1
+            cur_x, cur_y = self.agents["position"][i][0], self.agents["position"][i][1]
+            self.agents["position"][i][0] = min(max(0,cur_x + move_x),1)
+            self.agents["position"][i][1] = max(min(1,cur_y + move_y),0)
     
-    def _move_mice(self):
-        # assume uniform random movement of mouse rn, move each mouse
-        for i in range(self.n_mice):
-            
-            cur_x, cur_y, caught = self.mice[i]
-            if caught:
+    def _move_prey(self):
+        """
+        Moves prey's positions according to their specified behavior
+        """
+        # assume uniform random movement of prey
+        for i in range(self.n_prey):
+            cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
+            if self.prey["caught"][i]:
                 continue
-
             direction = 2 * np.pi * np.random.uniform()
             move_x = self.step_size * math.cos(direction)
             move_y = self.step_size * math.sin(direction)
             
-            self.mice[i] = (min(max(0,cur_x + move_x),1), max(min(1, cur_y + move_y), 0), caught)
+            self.prey["position"][i][0] = min(max(0,cur_x + move_x),1)
+            self.prey["position"][i][1] = max(min(1,cur_y + move_y),0)
 
     def _check_caught(self):
-        # check if mouse caught
-        for i in range(self.n_mice):
-
-            _, _, caught = self.mice[i]
-            if caught:
-                continue
-
-            for j in range(self.n_agents):
-                if self.catch_matrix[j][i]:
-                    self.mice[i] = (self.mice[i][0],self.mice[i][1],1)
-                    # if mouse caught, check obs radius to mark all agents that saw it getting caught
-                    for k in range(self.n_agents):
-                        if self.agent_mouse_obs_matrix[k][i]:
-                            self.agent_mice_list[k].append(i)
-                    break
-
+        """
+        Check if in current environment state an agent can catch a prey and update accordingly.
+        """
+        for i in range(self.n_prey):
+            if not self.prey["caught"][i]:
+                for j in range(self.n_agents):
+                    if self.agent_prey_caught[j][i]:
+                        for k in range(self.n_agents):
+                            # if prey caught, check observation radius to mark all agents that saw it getting caught
+                            if self.agent_mouse_obs_matrix[k][i]:
+                                self.agent_prey_list[k].append(i)
+                        self.prey["caught"][i] = 1
+                        break
+    
     def _calc_reward(self):
-        reward = [self.step_cost for _ in range(self.n_agents)]
-
-        dists = self._calc_dists(self.agents, self.mice)
-        
+        """
+        Calculates reward based on current environment state.
+        :return: reward score
+        """
+        reward = np.full(self.n_agents,self.step_cost)
         for i in range(self.n_agents):
             min_dist = self.observation_radius
-            for j in range(self.n_mice):
-                if not self.mice[j][2]:
-                    if self.agent_mouse_obs_matrix[i][j]:
-                        min_dist = min(min_dist, dists[i][j])
+            for j in range(self.n_prey):
+                if not self.prey["caught"][j] and self.agent_mouse_obs_matrix[i][j]:
+                    min_dist = min(min_dist, self.agent_prey_dists[i][j])
             reward[i] -= min_dist
-
         return reward
 
     def render(self):
         self._render_frame()
         
     def _render_frame(self):
+        """
+        Render each frame using pygame.
+        """   
         if self.window is None:
             pygame.init()
             pygame.display.init()
@@ -216,12 +252,8 @@ class CatMouseMA(gym.Env):
 
         canvas.fill((255, 255, 255))
 
-        # for checking if range matrices work
-        # pygame.font.init()
-        # my_font = pygame.font.SysFont('Comic Sans MS', 30)
-
-        for i,a in enumerate(self.agents):
-            x,y,*_ = a
+        for a in self.agents["position"]:
+            x,y = a[0],a[1]
             x *= self.window_size
             y *= self.window_size
             pygame.draw.circle(
@@ -237,14 +269,11 @@ class CatMouseMA(gym.Env):
                 self.observation_radius*self.window_size,
                 width=1
             )
-            
-            # text_surface = my_font.render("{}".format(self.agent_mouse_obs_matrix[i].sum()), False, (0,0,0))
-            # canvas.blit(text_surface, (x,y))
         
-        for m in self.mice:
-            if m[2]:
+        for i,p in enumerate(self.prey["position"]):
+            if self.prey["caught"][i]:
                 continue
-            x,y,*_ = m
+            x,y = p[0],p[1]
             x *= self.window_size
             y *= self.window_size
             pygame.draw.circle(
