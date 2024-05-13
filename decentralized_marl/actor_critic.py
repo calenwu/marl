@@ -45,8 +45,8 @@ class Actor(nn.Module):
 		self.state_dim = state_dim
 		self.action_dim = action_dim
 		self.device = device
-		self.LOG_STD_MIN = -20
-		self.LOG_STD_MAX = 2
+		#self.LOG_STD_MIN = -20
+		#self.LOG_STD_MAX = 2
 		self.setup_actor()
 
 	def setup_actor(self):
@@ -96,7 +96,7 @@ class Critic(nn.Module):
 	"""
 	Q-function(s)
 	"""
-	def __init__(self, state_dim, action_dim, hidden_size = 10, hidden_layers = 2, critic_lr = 1e-4, device: torch.device = torch.device('cpu')):
+	def __init__(self, state_dim, action_dim, hidden_size = 5, hidden_layers = 1, critic_lr = 1e-10, device: torch.device = torch.device('cpu')):
 		super(Critic, self).__init__()
 		self.hidden_size = hidden_size
 		self.hidden_layers = hidden_layers
@@ -104,6 +104,7 @@ class Critic(nn.Module):
 		self.state_dim = state_dim
 		self.action_dim = action_dim
 		self.device = device
+		self.network_copy = None
 		self.setup_critic()
 
 	def setup_critic(self):

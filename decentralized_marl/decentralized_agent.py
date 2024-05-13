@@ -39,13 +39,15 @@ class Agent:
 		with torch.no_grad():
 			state_tensor = torch.Tensor(np.array(s)).to(self.device)
 			action_prob = self.actor(state_tensor)
-			action = np.argmax(np.array(action_prob))
+			action = torch.distributions.Categorical(torch.Tensor(action_prob)).sample()
+			#action = np.argmax(np.array(action_prob))
 		return np.atleast_1d(action)
 
 	@staticmethod
 	def run_gradient_update_step(object, loss: torch.Tensor):
 		object.optimizer.zero_grad()
-		loss.mean().backward()
+		loss.backward() #.mean()
+		torch.nn.utils.clip_grad_norm_(object.network.parameters(), 1)
 		object.optimizer.step()
 
 	def update_mu(self, r):
@@ -59,7 +61,7 @@ class Agent:
 	def get_all_actions(self):
 		return range(self.action_dim)
 
-	def update_actor(self, s_t, a_t, num_samples = 25):
+	def update_actor(self, s_t, a_t):
 		A = self.critic(s_t+a_t)
 		action_probs = self.actor.forward(torch.Tensor(np.array(s_t)).to(self.device))
 		actions = self.get_all_actions()
@@ -75,7 +77,22 @@ class Agent:
 			param.data.add(self.beta * grad)
 
 	def get_omega(self):
-		return self.critic.parameters()
+		return self.critic.network.parameters()
 	
-	def set_omega(self, omega):
-		self.critic.set_parameters(omega)
+	def set_omega(self, other_critics):
+		self.critic.network_copy = None
+		if len(other_critics) == 0:
+			return
+		self.critic.network_copy = copy.deepcopy(self.critic.network)
+		for i in range(len(self.critic.network.layers)):
+			weight = self.critic.network.layers[i].weight.detach()
+			bias = self.critic.network.layers[i].bias.detach()
+			for j in range(len(other_critics)):
+				weight += other_critics[j].network.layers[i].weight.detach()
+				bias += other_critics[j].network.layers[i].bias.detach()
+			self.critic.network_copy.layers[i].weight.data.copy_(weight)
+			self.critic.network_copy.layers[i].bias.data.copy_(bias)
+			
+	def update_omega(self):
+		if not self.critic.network_copy is None:
+			self.critic.network = self.critic.network_copy
