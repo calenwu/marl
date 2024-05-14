@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Categorical
+from torch.distributions import Categorical, Normal
 from torch.utils.data.sampler import *
 
 
@@ -70,6 +70,7 @@ class Actor_MLP(nn.Module):
 		self.fc2 = nn.Linear(args.mlp_hidden_dim, args.mlp_hidden_dim)
 		self.fc3 = nn.Linear(args.mlp_hidden_dim, args.action_dim)
 		self.activate_func = [nn.Tanh(), nn.ReLU()][args.use_relu]
+		self.action_var = torch.full((actor_input_dim,), 1 * 1)
 
 		if args.use_orthogonal_init:
 			print("------use_orthogonal_init------")
@@ -77,12 +78,25 @@ class Actor_MLP(nn.Module):
 			orthogonal_init(self.fc2)
 			orthogonal_init(self.fc3, gain=0.01)
 
+	def set_action_std(self, new_action_std):
+		self.action_var = torch.full((self.action_dim,), new_action_std * new_action_std)
+
+	def decay_action_std(self, action_std_decay_rate, min_action_std):
+		self.action_std = self.action_std - action_std_decay_rate
+		self.action_std = round(self.action_std, 4)
+		if self.action_std <= min_action_std:
+			self.action_std = min_action_std
+			print("setting actor output action_std to min_action_std : ", self.action_std)
+		else:
+			print("setting actor output action_std to : ", self.action_std)
+			self.set_action_std(self.action_std)
+
 	def forward(self, actor_input):
 		# When 'choose_action': actor_input.shape=(N, actor_input_dim), prob.shape=(N, action_dim)
 		# When 'train':		 actor_input.shape=(mini_batch_size, episode_limit, N, actor_input_dim), prob.shape(mini_batch_size, episode_limit, N, action_dim)
 		x = self.activate_func(self.fc1(actor_input))
 		x = self.activate_func(self.fc2(x))
-		prob = torch.softmax(self.fc3(x), dim=-1)
+		prob = torch.tanh(self.fc3(x), dim=-1)
 		return prob
 
 
@@ -176,10 +190,10 @@ class MAPPO_MPE:
 			actor_inputs = torch.cat([x for x in actor_inputs], dim=-1)  # actor_input.shape=(N, actor_input_dim)
 			prob = self.actor(actor_inputs)  # prob.shape=(N,action_dim)
 			if evaluate:  # When evaluating the policy, we select the action with the highest probability
-				a_n = prob.argmax(dim=-1)
+				a_n = prob
 				return a_n.numpy(), None
 			else:
-				dist = Categorical(probs=prob)
+				dist = Normal(prob, self.actor.action_var)
 				a_n = dist.sample()
 				a_logprob_n = dist.log_prob(a_n)
 				return a_n.numpy(), a_logprob_n.numpy()
@@ -296,4 +310,3 @@ class MAPPO_MPE:
 
 	def load_model(self, env_name, number, seed, step):
 		self.actor.load_state_dict(torch.load("./model{}/MAPPO_actor_env_{}_number_{}_seed_{}_step_{}k.pth".format(number, env_name, number, seed, step)))
-

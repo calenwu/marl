@@ -17,6 +17,9 @@ def make_env(episode_limit, render_mode='None'):
 	env.reset()
 	return env
 
+action_std_decay_rate = 0.05
+min_action_std = 0.1
+action_std_decay_freq = 25000
 
 eps = []
 rewards = []
@@ -40,8 +43,8 @@ class Runner_MAPPO_MPE:
 		# self.args.action_dim_n = [self.env.action_spaces[agent].n for agent in self.env.agents]  # actions dimensions of N agents
 		self.args.N = self.env.n_agents
 		print(self.env.observation_space[0])
-		self.args.obs_dim_n = [self.env.observation_space[agent].shape[0] for agent in range(self.args.N)]
-		self.args.action_dim_n = [5 for agent in range(self.args.N)]
+		self.args.obs_dim_n = [(self.env.n_agents*2 + self.env.n_prey * 3) for agent in range(self.args.N)]
+		self.args.action_dim_n = [1 for agent in range(self.args.N)]
 		# Only for homogenous agents environments like Spread in MPE,all agents have the same dimension of observation space and action space
 		self.args.obs_dim = self.args.obs_dim_n[0]  # The dimensions of an agent's observation space
 		self.args.action_dim = self.args.action_dim_n[0]  # The dimensions of an agent's action space
@@ -70,16 +73,19 @@ class Runner_MAPPO_MPE:
 			self.reward_scaling = RewardScaling(shape=self.args.N, gamma=self.args.gamma)
 
 	def run(self, ):
+		episodes = 0
 		while self.total_steps < self.args.max_train_steps:
 			if self.total_steps % self.args.evaluate_freq == 0:
 				self.evaluate_policy()  # Evaluate the policy every 'evaluate_freq' steps
 
 			_, episode_steps = self.run_episode_mpe()  # Run an episode
 			self.total_steps += episode_steps
-
+			if episodes % action_std_decay_freq == 0:
+				self.agent_n.actor.decay_action_std(action_std_decay_rate, min_action_std)
 			if self.bufer.episode_num == self.args.batch_size:
 				self.agent_n.train(self.bufer, self.total_steps)  # Training
 				self.bufer.reset_buffer()
+			episodes += 1
 
 		self.evaluate_policy()
 		self.env.close()
@@ -124,7 +130,6 @@ class Runner_MAPPO_MPE:
 	def run_episode_mpe(self, evaluate=False):
 		episode_reward = 0
 		observations, infos = self.env.reset()
-
 		# obs_n = np.array([observations[agent] for agent in observations.keys()])
 		obs_n = np.array([observations, observations])
 		if self.args.use_reward_scaling:
@@ -136,24 +141,16 @@ class Runner_MAPPO_MPE:
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)  # Get actions and the corresponding log probabilities of N agents
 			s = obs_n.flatten()  # In MPE, global state is the concatenation of all agents' local obs.
 			v_n = self.agent_n.get_value(s)  # Get the state values (V(s)) of N agents
-
-			# need to transit 'a_n' into dict
-
 			obs_next_n, r_n, done_n, _ = self.env.step(a_n)
-
 			episode_reward += r_n[0]
-
 			if not evaluate:
 				if self.args.use_reward_norm:
 					r_n = self.reward_norm(r_n)
 				elif self.args.use_reward_scaling:
 					r_n = self.reward_scaling(r_n)
-
 				# Store the transition
 				self.bufer.store_transition(episode_step, obs_n, s, v_n, a_n, a_logprob_n, r_n, done_n)
-
 			obs_n = np.array(obs_next_n)
-	 
 			if all(done_n):
 				break
 
