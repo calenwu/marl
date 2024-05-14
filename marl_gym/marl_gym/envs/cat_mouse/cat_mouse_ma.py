@@ -103,10 +103,10 @@ class CatMouseMA(gym.Env):
                     cur_agent_prey_obs["position"][j][0] = -1
                     cur_agent_prey_obs["position"][j][1] = -1
 
-                cur_agent_prey_obs["caught"] = obs_caught
+                cur_agent_prey_obs["caught"][j] = obs_caught
 
             cur_agent_obs["agents"] = cur_agent_agent_obs
-            cur_agent_obs["caught"] = cur_agent_prey_obs
+            cur_agent_obs["prey"] = cur_agent_prey_obs
             agent_obs.append(cur_agent_obs)
             communication.append(cur_in_comm_range)
         
