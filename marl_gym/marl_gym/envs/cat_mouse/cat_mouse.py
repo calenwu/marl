@@ -8,7 +8,8 @@ class CatMouse(gym.Env):
 
     metadata = {'render_modes': ['human'], 'render_fps': 4}
     
-    def __init__(self, max_iter=None, n_agents=2, n_prey=4, step_size=0.05, entity_size=0.05, step_cost = -0.1, render_mode=None, window_size = 250):
+    def __init__(self, max_iter: int = None, n_agents: int = 2, n_prey: int = 4, step_size: float = 0.05, 
+                 entity_size: float = 0.05, step_cost: float = -0.1, window_size: int = 250):
         
         self.max_iter = max_iter
         self.n_agents = n_agents
@@ -17,7 +18,6 @@ class CatMouse(gym.Env):
         self.entity_size = entity_size
         self.catch_range = 2 * self.entity_size
         self.step_cost = step_cost
-        self.render_mode = render_mode
         self.window_size = window_size
         self.window = None
         self.clock = None
@@ -38,15 +38,16 @@ class CatMouse(gym.Env):
         self.spec = None
         self.reset()
 
-    # turn env state into observation state
     def _get_obs(self):
         """
         Turns environment state into observation state.
             
         """
-        return {"agents": self.agents, "prey": self.prey}
+        info = {}
+        return {"agents": self.agents, "prey": self.prey}, info
 
-    def reset(self):
+    def reset(self, seed=None):
+        np.random.seed(seed)
         self.agents = {"position": np.random.rand(self.n_agents,2)}
         self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
         return self._get_obs()
@@ -57,7 +58,6 @@ class CatMouse(gym.Env):
         next_state = None
         reward = 0
         terminated = False
-        info = {}
 
         # move each agent according to action array
         self._move_agents(action)
@@ -70,7 +70,7 @@ class CatMouse(gym.Env):
         # check which prey got caught, update the env state
         self._check_caught()
         # turn environment state to observation state
-        next_state = self._get_obs()
+        next_state, info = self._get_obs()
         # calculate reward
         reward = self._calc_reward()
         # check if all prey are caught

@@ -1,6 +1,6 @@
 import gym
 from gym import spaces
-from marl_gym.marl_gym.envs.utils.utils import * # maybe need to change if made to package
+from marl_gym.marl_gym.envs.utils.utils import *  # maybe need to change if made to package
 import numpy as np
 import math
 import pygame
@@ -9,11 +9,25 @@ import copy
 class CatMouseMA(gym.Env):
 
     metadata = {'render_modes': ['human'], "render_fps": 4}
-    
-    def __init__(self, max_iter=None, n_agents=2, n_prey=4, step_size=0.05, 
-                 entity_size=0.05, observation_radius=0.2, communication_radius=0.2, 
-                 step_cost = -0.1, window_size=250):
-        
+
+    def __init__(self, max_iter: int = None, n_agents: int = 2, n_prey: int = 4, step_size: float = 0.05,
+                entity_size: float = 0.05, observation_radius: float = 0.2, communication_radius: float = 0.2,
+                step_cost: float = -0.1, window_size: int = 250):
+        """
+        Initialize the environment.
+
+        Args:
+        max_iter (int, optional): Maximum number of steps per episode. Defaults to None (no limit).
+        n_agents (int): Number of agents in the environment. Defaults to 2.
+        n_prey (int): Number of prey in the environment. Defaults to 4.
+        step_size (float): Step size for agent movement. Defaults to 0.05.
+        entity_size (float): Size of agents and prey (radius). Defaults to 0.05.
+        observation_radius (float): Observation radius for agents. Defaults to 0.2.
+        communication_radius (float): Communication radius for agents. Defaults to 0.2.
+        step_cost (float): Reward penalty for each step. Defaults to -0.1.
+        window_size (int): Size of the rendering window. Defaults to 250.
+        """
+
         self.max_iter = max_iter
         self.n_agents = n_agents
         self.n_prey = n_prey
@@ -27,33 +41,32 @@ class CatMouseMA(gym.Env):
         self.window = None
         self.clock = None
         self.steps = 0
-        
+
         self.action_space = spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=np.float32)
         self.observation_space = MultiAgentObservationSpace([spaces.Dict({
             "agents": spaces.Dict({
-                "position": spaces.Box(low=0,high=1,shape=(self.n_agents,2)),
-                "cur_agent": spaces.MultiBinary(self.n_agents),
+            "position": spaces.Box(low=0, high=1, shape=(self.n_agents, 2)),
+            "cur_agent": spaces.MultiBinary(self.n_agents),
             }),
             "prey": spaces.Dict({
-                "position": spaces.Box(low=0,high=1,shape=(self.n_prey,2)),
-                "caught": spaces.MultiBinary(self.n_prey),
+            "position": spaces.Box(low=0, high=1, shape=(self.n_prey, 2)),
+            "caught": spaces.MultiBinary(self.n_prey),
             })
         }) for _ in range(self.n_agents)])
-        
-        # entry i contains list of mice, which agent i saw (was in observation radius) get caught
+
+        # List to store prey each agent observed getting caught
         self.agent_prey_list = [[] for _ in range(self.n_agents)]
 
         self.reset()
 
-    def get_global_obs(self):
+    def get_global_obs(self) -> dict:
         """
-        Returns environment state
+        Returns the global state of the environment.
+
+        :return: Dictionary containing agent positions and prey positions/caught status.
         """
         return {"agents": self.agents, "prey": self.prey}
-    
-    # turn env state into observation state
-    # observation state for agent i: (agents, prey), where agents/prey are arrays of 3-tuples, first 2 are position, 3rd is flag
-    # for agent flag whether it's the current agent, for prey whether current agent saw it getting caught
+
     def _get_obs(self):
         """
         Turns environment state into local observation state. Each agent's observation contains positions of other agent's and prey.
@@ -61,6 +74,7 @@ class CatMouseMA(gym.Env):
         agent matches the observation number.
         :return: Observation space according to self.observation_space
         """
+        info = {}
         agent_obs = []
         communication = []
         for i in range(self.n_agents):
@@ -95,10 +109,13 @@ class CatMouseMA(gym.Env):
             cur_agent_obs["caught"] = cur_agent_prey_obs
             agent_obs.append(cur_agent_obs)
             communication.append(cur_in_comm_range)
+        
+        info["comm_partners"] = communication
 
-        return agent_obs, communication
+        return agent_obs, info
 
-    def reset(self):
+    def reset(self, seed: int = None):
+        np.random.seed(seed)
         self.agents = {"position": np.random.rand(self.n_agents,2)}
         self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
         # need to calculate matrices for get_obs
@@ -109,13 +126,12 @@ class CatMouseMA(gym.Env):
         self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
         return self._get_obs()
 
-    def step(self, action):
+    def step(self, action: list) -> tuple:
         assert len(action) == self.n_agents, "action length should be number of agents"
 
         next_state = None
         reward = []
         terminated = False
-        info = {}
 
         # move each agent according to action array
         self._move_agents(action)
@@ -132,7 +148,7 @@ class CatMouseMA(gym.Env):
 
         self._check_caught()
 
-        next_state, communication = self._get_obs()
+        next_state, info = self._get_obs()
 
         reward = self._calc_reward()
         
@@ -143,8 +159,6 @@ class CatMouseMA(gym.Env):
         self.steps =+ 1
         if self.max_iter:
             truncated = self.steps < self.max_iter
-
-        info["comm_partners"] = communication
 
         return next_state, reward, terminated, truncated, info
     
