@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from torch.distributions import Categorical, Normal
 from torch.utils.data.sampler import *
 
@@ -68,36 +69,30 @@ class Actor_MLP(nn.Module):
 		super(Actor_MLP, self).__init__()
 		self.fc1 = nn.Linear(actor_input_dim, args.mlp_hidden_dim)
 		self.fc2 = nn.Linear(args.mlp_hidden_dim, args.mlp_hidden_dim)
-		self.fc3 = nn.Linear(args.mlp_hidden_dim, args.action_dim)
+		self.mu = nn.Linear(args.mlp_hidden_dim, args.action_dim)
+		self.sigma = nn.Linear(args.mlp_hidden_dim, args.action_dim)
 		self.activate_func = [nn.Tanh(), nn.ReLU()][args.use_relu]
-		self.action_var = torch.full((actor_input_dim,), 1 * 1)
+		self.action_var = torch.full((1,), 0.25 * 0.25)
 
 		if args.use_orthogonal_init:
 			print("------use_orthogonal_init------")
 			orthogonal_init(self.fc1)
 			orthogonal_init(self.fc2)
-			orthogonal_init(self.fc3, gain=0.01)
+			orthogonal_init(self.mu, gain=0.01)
+			orthogonal_init(self.sigma, gain=0.01)
 
-	def set_action_std(self, new_action_std):
-		self.action_var = torch.full((self.action_dim,), new_action_std * new_action_std)
-
-	def decay_action_std(self, action_std_decay_rate, min_action_std):
-		self.action_std = self.action_std - action_std_decay_rate
-		self.action_std = round(self.action_std, 4)
-		if self.action_std <= min_action_std:
-			self.action_std = min_action_std
-			print("setting actor output action_std to min_action_std : ", self.action_std)
-		else:
-			print("setting actor output action_std to : ", self.action_std)
-			self.set_action_std(self.action_std)
+	def set_action_var(self, new_action_std):
+		self.action_var = torch.full((1,), new_action_std * new_action_std)
 
 	def forward(self, actor_input):
 		# When 'choose_action': actor_input.shape=(N, actor_input_dim), prob.shape=(N, action_dim)
 		# When 'train':		 actor_input.shape=(mini_batch_size, episode_limit, N, actor_input_dim), prob.shape(mini_batch_size, episode_limit, N, action_dim)
 		x = self.activate_func(self.fc1(actor_input))
 		x = self.activate_func(self.fc2(x))
-		prob = torch.tanh(self.fc3(x), dim=-1)
-		return prob
+		mu = torch.tanh(self.mu(x))
+		log_sigma = -torch.relu(self.sigma(x))
+		sigma = torch.exp(log_sigma)
+		return mu, sigma
 
 
 class Critic_MLP(nn.Module):
@@ -171,7 +166,7 @@ class MAPPO_MPE:
 		else:
 			self.ac_optimizer = torch.optim.Adam(self.ac_parameters, lr=self.lr)
 
-	def choose_action(self, obs_n, evaluate):
+	def  choose_action(self, obs_n, evaluate):
 		with torch.no_grad():
 			actor_inputs = []
 			obs_n = torch.tensor(obs_n, dtype=torch.float32)  # obs_n.shape=(N，obs_dim)
@@ -188,15 +183,16 @@ class MAPPO_MPE:
 				actor_inputs.append(torch.eye(self.N))
 
 			actor_inputs = torch.cat([x for x in actor_inputs], dim=-1)  # actor_input.shape=(N, actor_input_dim)
-			prob = self.actor(actor_inputs)  # prob.shape=(N,action_dim)
+			mu, sigma = self.actor(actor_inputs)  # prob.shape=(N,action_dim)
 			if evaluate:  # When evaluating the policy, we select the action with the highest probability
-				a_n = prob
-				return a_n.numpy(), None
+				a_n = mu.numpy()
+				# a_n = np.array([np.array([-0.25]), np.array([0.25])])
+				return a_n, None
 			else:
-				dist = Normal(prob, self.actor.action_var)
+				dist = Normal(mu, sigma)
 				a_n = dist.sample()
 				a_logprob_n = dist.log_prob(a_n)
-				return a_n.numpy(), a_logprob_n.numpy()
+				return np.squeeze(a_n.numpy()), np.squeeze(a_logprob_n.numpy())
 
 	def get_value(self, s):
 		with torch.no_grad():
@@ -255,10 +251,11 @@ class MAPPO_MPE:
 					probs_now = torch.stack(probs_now, dim=1)
 					values_now = torch.stack(values_now, dim=1)
 				else:
-					probs_now = self.actor(actor_inputs[index])
+					probs_now, sigma_now = self.actor(actor_inputs[index])
+					probs_now, sigma_now = probs_now.squeeze(-1), sigma_now.squeeze(-1)
 					values_now = self.critic(critic_inputs[index]).squeeze(-1)
 
-				dist_now = Categorical(probs_now)
+				dist_now = Normal(probs_now, self.actor.action_var)
 				dist_entropy = dist_now.entropy()  # dist_entropy.shape=(mini_batch_size, episode_limit, N)
 				# batch['a_n'][index].shape=(mini_batch_size, episode_limit, N)
 				a_logprob_n_now = dist_now.log_prob(batch['a_n'][index])  # a_logprob_n_now.shape=(mini_batch_size, episode_limit, N)

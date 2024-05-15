@@ -13,13 +13,11 @@ def make_env(episode_limit, render_mode='None'):
 	# env = simple_spread_v3.parallel_env(N=3, max_cycles=episode_limit,
 	# 									local_ratio=0.5, render_mode=render_mode, continuous_actions=False)
 	# env.reset(seed=42)
-	env = CatMouseMA()
+	env = CatMouseMA(observation_radius=10)
 	env.reset()
 	return env
 
-action_std_decay_rate = 0.05
 min_action_std = 0.1
-action_std_decay_freq = 25000
 
 eps = []
 rewards = []
@@ -43,13 +41,12 @@ class Runner_MAPPO_MPE:
 		# self.args.action_dim_n = [self.env.action_spaces[agent].n for agent in self.env.agents]  # actions dimensions of N agents
 		self.args.N = self.env.n_agents
 		print(self.env.observation_space[0])
-		self.args.obs_dim_n = [(self.env.n_agents*2 + self.env.n_prey * 3) for agent in range(self.args.N)]
+		self.args.obs_dim_n = [(self.env.n_agents * 3 + self.env.n_prey * 3) for agent in range(self.args.N)]
 		self.args.action_dim_n = [1 for agent in range(self.args.N)]
 		# Only for homogenous agents environments like Spread in MPE,all agents have the same dimension of observation space and action space
 		self.args.obs_dim = self.args.obs_dim_n[0]  # The dimensions of an agent's observation space
 		self.args.action_dim = self.args.action_dim_n[0]  # The dimensions of an agent's action space
-		self.args.state_dim = np.sum(
-			self.args.obs_dim_n)  # The dimensions of global state space（Sum of the dimensions of the local observation space of all agents）
+		self.args.state_dim = 2 * self.env.n_agents + 3 * self.env.n_prey  # The dimensions of global state space（Sum of the dimensions of the local observation space of all agents）
 		print('observation_space=', self.env.observation_space)
 		print('obs_dim_n={}'.format(self.args.obs_dim_n))
 		print('action_space=', self.env.action_space)
@@ -78,10 +75,10 @@ class Runner_MAPPO_MPE:
 			if self.total_steps % self.args.evaluate_freq == 0:
 				self.evaluate_policy()  # Evaluate the policy every 'evaluate_freq' steps
 
-			_, episode_steps = self.run_episode_mpe()  # Run an episode
+			episode_reward, episode_steps = self.run_episode_mpe()  # Run an episode
 			self.total_steps += episode_steps
-			if episodes % action_std_decay_freq == 0:
-				self.agent_n.actor.decay_action_std(action_std_decay_rate, min_action_std)
+			if episodes % 100 == 0:
+				print('total_steps:{} \t episode_reward:{}'.format(self.total_steps, episode_reward))
 			if self.bufer.episode_num == self.args.batch_size:
 				self.agent_n.train(self.bufer, self.total_steps)  # Training
 				self.bufer.reset_buffer()
@@ -105,7 +102,6 @@ class Runner_MAPPO_MPE:
 		df = pd.DataFrame(data)
 		df.to_csv('reward_vs_episodes.csv', index=False)
 
-
 	def evaluate_policy(self):
 		evaluate_reward = 0
 		for _ in range(self.args.evaluate_times):
@@ -126,12 +122,33 @@ class Runner_MAPPO_MPE:
 				np.array(self.evaluate_rewards))
 		self.agent_n.save_model(self.env_name, self.number, self.seed, self.total_steps)
 
+	def trans_obs(self, obs):
+		ret = []
+		for agent_obs in obs:
+			temp = []
+			temp.append(agent_obs['agents']['cur_agent'])
+			for agent_pos in agent_obs['agents']['position']:
+				temp.append(agent_pos)
+			for prey_pos in agent_obs['prey']['position']:
+				temp.append(prey_pos)
+			temp.append(agent_obs['prey']['caught'])
+			ret.append(np.concatenate(temp))
+		return np.array(ret)
+
+	def trans_state(self, state):
+		ret = []
+		for agent_pos in state['agents']['position']:
+			ret += agent_pos.tolist()
+		for i, prey_pos in enumerate(state['prey']['position']):
+			ret += prey_pos.tolist()
+			ret.append(state['prey']['caught'][i])
+		return np.array(ret)
 
 	def run_episode_mpe(self, evaluate=False):
 		episode_reward = 0
 		observations, infos = self.env.reset()
 		# obs_n = np.array([observations[agent] for agent in observations.keys()])
-		obs_n = np.array([observations, observations])
+		obs_n = np.array(self.trans_obs(observations))
 		if self.args.use_reward_scaling:
 			self.reward_scaling.reset()
 		if self.args.use_rnn:  # If you use RNN, before the beginning of each episode，reset the rnn_hidden of the Q network.
@@ -139,9 +156,10 @@ class Runner_MAPPO_MPE:
 			self.agent_n.critic.rnn_hidden = None
 		for episode_step in range(self.args.episode_limit):
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)  # Get actions and the corresponding log probabilities of N agents
-			s = obs_n.flatten()  # In MPE, global state is the concatenation of all agents' local obs.
+			s = self.trans_state(self.env.get_global_obs())  # In MPE, global state is the concatenation of all agents' local obs.
 			v_n = self.agent_n.get_value(s)  # Get the state values (V(s)) of N agents
-			obs_next_n, r_n, done_n, _ = self.env.step(a_n)
+			obs_next_n, r_n, done_n ,_ ,_ = self.env.step(a_n)
+			obs_next_n = self.trans_obs(obs_next_n)
 			episode_reward += r_n[0]
 			if not evaluate:
 				if self.args.use_reward_norm:
@@ -151,12 +169,12 @@ class Runner_MAPPO_MPE:
 				# Store the transition
 				self.bufer.store_transition(episode_step, obs_n, s, v_n, a_n, a_logprob_n, r_n, done_n)
 			obs_n = np.array(obs_next_n)
-			if all(done_n):
+			if done_n:
 				break
 
 		if not evaluate:
 			# An episode is over, store v_n in the last step
-			s = np.array(obs_n).flatten()
+			s = self.trans_state(self.env.get_global_obs())
 			v_n = self.agent_n.get_value(s)
 			self.bufer.store_last_value(episode_step + 1, v_n)
 
@@ -165,7 +183,7 @@ class Runner_MAPPO_MPE:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser('Hyperparameters Setting for MAPPO in MPE environment')
-	parser.add_argument('--max_train_steps', type=int, default=int(3e6), help=' Maximum number of training steps')
+	parser.add_argument('--max_train_steps', type=int, default=int(3e5), help=' Maximum number of training steps')
 	parser.add_argument('--episode_limit', type=int, default=25, help='Maximum number of steps per episode')
 	parser.add_argument('--evaluate_freq', type=float, default=int(5000),
 						help='Evaluate the policy every "evaluate_freq" steps')
@@ -175,7 +193,7 @@ if __name__ == '__main__':
 	parser.add_argument('--mini_batch_size', type=int, default=8, help='Minibatch size (the number of episodes)')
 	parser.add_argument('--rnn_hidden_dim', type=int, default=64,
 						help='The number of neurons in hidden layers of the rnn')
-	parser.add_argument('--mlp_hidden_dim', type=int, default=64,
+	parser.add_argument('--mlp_hidden_dim', type=int, default=256,
 						help='The number of neurons in hidden layers of the mlp')
 	parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
 	parser.add_argument('--gamma', type=float, default=0.99, help='Discount factor')

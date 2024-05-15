@@ -6,6 +6,19 @@ import os
 from main import Runner_MAPPO_MPE
 from PIL import Image
 
+def trans_obs(obs):
+	ret = []
+	for agent_obs in obs:
+		temp = []
+		temp.append(agent_obs['agents']['cur_agent'])
+		for agent_pos in agent_obs['agents']['position']:
+			temp.append(agent_pos)
+		for prey_pos in agent_obs['prey']['position']:
+			temp.append(prey_pos)
+		temp.append(agent_obs['prey']['caught'])
+		ret.append(np.concatenate(temp))
+	return np.array(ret)
+
 rewardpath = './data_train/'
 resultpath = './result1/'
 if not os.path.exists(resultpath):
@@ -20,7 +33,7 @@ parser.add_argument('--evaluate_times', type=float, default=3, help='Evaluate ti
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size (the number of episodes)')
 parser.add_argument('--mini_batch_size', type=int, default=8, help='Minibatch size (the number of episodes)')
 parser.add_argument('--rnn_hidden_dim', type=int, default=64, help='The number of neurons in hidden layers of the rnn')
-parser.add_argument('--mlp_hidden_dim', type=int, default=64, help='The number of neurons in hidden layers of the mlp')
+parser.add_argument('--mlp_hidden_dim', type=int, default=256, help='The number of neurons in hidden layers of the mlp')
 parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
 parser.add_argument('--gamma', type=float, default=0.99, help='Discount factor')
 parser.add_argument('--lamda', type=float, default=0.95, help='GAE parameter')
@@ -59,7 +72,7 @@ if not os.path.exists(gif_dir):
 gif_num = len([file for file in os.listdir(gif_dir)])  # current number of gif
 
 runner = Runner_MAPPO_MPE(args, env_name='simple_spread_v3', number=3, seed=0)
-runner.agent_n.load_model('simple_spread_v3', number=3, seed=0, step=3000)
+runner.agent_n.load_model('simple_spread_v3', number=3, seed=0, step=300)
 
 agent_num = runner.args.N
 # reward of each episode of each agent
@@ -72,16 +85,17 @@ for episode in range(5):
 
 	agent_reward = {agent: 0 for agent in range(agent_num)}  # agent reward of the current episode
 	frame_list = []  # used to save gif
-
-	states = np.array([states, states])
+	states = trans_obs(states)
 	for episode_step in range(runner.args.episode_limit):
 		a_n, _ = runner.agent_n.choose_action(states, evaluate=True)
 		# need to transit 'a_n' into dict
 		# actions = {}
 		# for i, agent in enumerate(runner.env.agents):
 		# 	actions[agent] = a_n[i]
-		next_states, rewards, dones, _ = runner.env.step(a_n)
+		next_states, rewards, dones, _, _ = runner.env.step(a_n)
+		next_states = trans_obs(next_states)
 		time.sleep(0.5)
+		print(a_n)
 		runner.env.render()
 		# frame_list.append(Image.fromarray(runner.env.render()))  # 第二次frame_list=[]时报错
 		states = np.array(next_states)
@@ -112,3 +126,9 @@ ax.set_ylabel('reward')
 title = f'evaluate result of mappo'
 ax.set_title(title)
 plt.show()
+
+
+# Were you really passionate about this problem
+# How did you make money
+# Did you face a problem of finding stock images and then started the company to get free stock content?
+# unsplash competitor
