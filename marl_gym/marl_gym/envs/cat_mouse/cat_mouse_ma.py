@@ -54,9 +54,6 @@ class CatMouseMA(gym.Env):
             })
         }) for _ in range(self.n_agents)])
 
-        # List to store prey each agent observed getting caught
-        self.agent_prey_list = [[] for _ in range(self.n_agents)]
-
         self.reset()
 
     def get_global_obs(self) -> dict:
@@ -118,12 +115,14 @@ class CatMouseMA(gym.Env):
         np.random.seed(seed)
         self.agents = {"position": np.random.rand(self.n_agents,2)}
         self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
-        # need to calculate matrices for get_obs
+        # need  to calculate matrices for get_obs
         agent_agent_dists = self._calc_dists(self.agents["position"], self.agents["position"])
         self.agent_prey_dists = self._calc_dists(self.agents["position"], self.prey["position"])
         self.agent_agent_obs_matrix = self._calc_in_range_matrix(agent_agent_dists, self.observation_radius)
         self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agent_prey_dists, self.observation_radius)
         self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
+        # List to store prey each agent observed getting caught
+        self.agent_prey_list = [[] for _ in range(self.n_agents)]
         return self._get_obs()
 
     def step(self, action: list) -> tuple:
