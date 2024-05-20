@@ -115,7 +115,6 @@ class CatMouseMA(gym.Env):
         return agent_obs, info
 
     def reset(self, seed: int = None):
-        self.agent_prey_list = [[] for _ in range(self.n_agents)]
         np.random.seed(seed)
         self.agents = {"position": np.random.rand(self.n_agents,2)}
         self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
@@ -152,7 +151,6 @@ class CatMouseMA(gym.Env):
 
         reward = self._calc_reward()
         reward += 100 * self._check_caught()
-        # reward += ((np.count_nonzero(self.prey["caught"] == 1) + 1) ** 4) * 100 * self._check_caught()
         
         terminated = np.all(self.prey["caught"])
 
@@ -250,7 +248,7 @@ class CatMouseMA(gym.Env):
             min_dist = self.observation_radius
             for j in range(self.n_prey):
                 if not self.prey["caught"][j] and self.agent_mouse_obs_matrix[i][j]:
-                    min_dist = min(min_dist, self.agent_prey_dists[i][j])
+                    min_dist = (min(min_dist, self.agent_prey_dists[i][j]) * 2) ** 2
             reward[i] -= min_dist
         return reward
 

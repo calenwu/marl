@@ -21,6 +21,7 @@ class CatMouse(gym.Env):
         self.window = None
         self.clock = None
         self.steps = 0
+
         # standard gymnasium specifications
         self.action_space = spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=np.float32)
         self.observation_space = spaces.Dict({
@@ -119,7 +120,6 @@ class CatMouse(gym.Env):
                 for j in range(self.n_agents):
                     if self.agent_prey_caught[j][i]:
                         self.prey["caught"][i] = 1
-                        self.caught_in_step += 1
                         break
     
     def _calc_reward(self):
@@ -134,8 +134,6 @@ class CatMouse(gym.Env):
                 if not self.prey["caught"][j]:
                     min_dist = min(min_dist, self.agent_prey_dists[i][j])
             reward -= min_dist
-
-        reward += self.caught_in_step * 2
         return reward
 
     def _move_agents(self, action):
