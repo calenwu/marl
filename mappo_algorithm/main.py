@@ -13,23 +13,22 @@ from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
 
 
 def make_env(episode_limit, render_mode='None'):
-	# env = simple_spread_v3.parallel_env(N=3, max_cycles=episode_limit, local_ratio=0.5,
-	# 	render_mode='human', continuous_actions=True)
-	# env.reset(seed=42)
-	# env.n_agents = env.num_agents
-	# env.obs_dim = [env.observation_spaces[agent].shape[0] for agent in env.agents][0]
-	# # env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
-	# env.state_dim = env.obs_dim * env.num_agents
-	# env.action_dim = 5
+	env = simple_spread_v3.parallel_env(N=3, max_cycles=episode_limit, local_ratio=0.5,
+		render_mode='human', continuous_actions=False)
+	env.reset(seed=42)
+	env.n_agents = env.num_agents
+	env.obs_dim = [env.observation_spaces[agent].shape[0] for agent in env.agents][0]
+	# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
+	env.state_dim = env.obs_dim * env.num_agents
+	env.action_dim = 5
+	# env = CatMouseMA(observation_radius=10, n_agents=1, n_prey=2)
 
-
-
-	env = CatMouseMA(observation_radius=10, n_agents=1, n_prey=1)
-
-	env.obs_dim = env.n_agents * 3 + env.n_prey * 3
-	env.state_dim = 2 * env.n_agents + 3 * env.n_prey
-	env.action_dim = 4
-	env.reset()
+	# env.obs_dim = env.n_agents * 3 + env.n_prey * 3
+	# env.state_dim = 2 * env.n_agents + 3 * env.n_prey
+	# env.obs_dim = 8
+	# env.state_dim = 8
+	# env.action_dim = 4
+	# env.reset()
 	return env
 
 
@@ -41,7 +40,7 @@ def trans_obs(obs):
 	ret = []
 	for agent_obs in obs:
 		temp = []
-		temp.append(agent_obs['agents']['cur_agent'])
+		# temp.append(agent_obs['agents']['cur_agent'])
 		for agent_pos in agent_obs['agents']['position']:
 			temp.append(agent_pos)
 		for prey_pos in agent_obs['prey']['position']:
@@ -78,8 +77,8 @@ class Runner_MAPPO:
 		np.random.seed(self.seed)
 		torch.manual_seed(self.seed)
 
-		self.episode_limit = 25
-		self.max_train_steps = 2000000
+		self.episode_limit = 50
+		self.max_train_steps = 1000000
 		self.evaluate_freq = 1000
 
 		self.env = make_env(self.episode_limit, render_mode=None)
@@ -87,7 +86,7 @@ class Runner_MAPPO:
 		self.obs_dim = self.env.obs_dim
 		self.action_dim = self.env.action_dim
 		self.state_dim = self.env.state_dim
-		self.batch_size = 32
+		self.batch_size = 64
 
 		self.agent_n = Agent(
 			continuous=False,
@@ -109,49 +108,54 @@ class Runner_MAPPO:
 		obs_n, info = self.env.reset()
 
 		# cat_mouse
-		obs_n = np.array(trans_obs(obs_n))
+		# obs_n = np.array(trans_obs(obs_n))
 
 		# simple_spread
-		# obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
+		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
 
 		for episode_step in range(self.episode_limit):
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)  # Get actions and the corresponding log probabilities of N agents
 
 			# cat_mouse
-			a_n = np.array([get_action(x) for x in a_n])
-			s = trans_state(self.env.get_global_obs())
+			# a_n = np.array([get_action(x) for x in a_n])
+			# s = trans_state(self.env.get_global_obs())
 
 			# simple_spread
 			# stay, right, left, top, bottom
 			# a_n = [np.array([0,0,0.5,1,0.5]) for _ in range(self.n_agents)]
-			# s = obs_n.flatten()
+			s = obs_n.flatten()
 
 			v_n = self.agent_n.get_value(s)  # Get the state values (V(s)) of N agents
 
 
 			# cat_mouse
-			obs_next_n, r_n, done_n, _, _ = self.env.step(a_n)
-			obs_next_n = trans_obs(obs_next_n)
-			done_n = [done_n]
-			episode_reward += sum(r_n)
+			# obs_next_n, r_n, done_n, _, _ = self.env.step(a_n)
+			# obs_next_n = trans_obs(obs_next_n)
+			# done_n = [done_n]
+			# episode_reward += sum(r_n)
 
 			# simple_spread
-			# actions = {}
-			# for i, agent in enumerate(self.env.agents):
-			# 	actions[agent] = a_n[i]
-			# obs_next_n, r_n, done_n, _, _ = self.env.step(actions)
-			# obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
-			# done_n = np.array([val for val in done_n.values()])
-			# episode_reward += sum(list(r_n.values()))
+			actions = {}
+			for i, agent in enumerate(self.env.agents):
+				actions[agent] = a_n[i]
+			obs_next_n, r_n, done_n, _, _ = self.env.step(actions)
+			obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
+			done_n = np.array([val for val in done_n.values()])
+			episode_reward += sum(list(r_n.values()))
 
 			if evaluate:
-				# time.sleep(0.1)
-				print(a_n)
+				time.sleep(0.1)
+				# print(a_n)
 				self.env.render()
 
 			if not evaluate:
 				#simple_spread
-				# r_n = self.reward_norm([r for r in r_n.values()])
+				r_n = self.reward_norm([r for r in r_n.values()])
+				# print('obs_n: ', obs_n)
+				# print('v_n: ', v_n)
+				# print('a_n: ', a_n)
+				# print('a_logprob_n: ', a_logprob_n)
+				# print('r_n: ', r_n)
 				self.buffer.store_transition(episode_step, obs_n, s, v_n, a_n, a_logprob_n, r_n, done_n)
 
 			obs_n = np.array(obs_next_n)
@@ -161,10 +165,10 @@ class Runner_MAPPO:
 		if not evaluate:
 			# Store v_n in the last step
 			# cat_mouse
-			s = trans_state(self.env.get_global_obs())
+			# s = trans_state(self.env.get_global_obs())
 
 			#simple_spread
-			# s = np.array(obs_n).flatten()
+			s = np.array(obs_n).flatten()
 
 			v_n = self.agent_n.get_value(s)
 			self.buffer.store_last_value(episode_step + 1, v_n)
@@ -190,7 +194,7 @@ class Runner_MAPPO:
 
 	def evaluate_policy(self):
 		evaluate_reward = 0
-		for _ in range(1):
+		for _ in range(5):
 			episode_reward, _ = self.run_episode(evaluate=True)
 			evaluate_reward += episode_reward
 
@@ -204,20 +208,20 @@ class Runner_MAPPO:
 
 if __name__ == '__main__':
 	runner = Runner_MAPPO(env_name='simple_spread_v3', number=3, seed=0)
-	runner.train()
-	runner.agent_n.save_model()
+	# runner.train()
+	# runner.agent_n.save_model()
 
-	plt.figure(figsize=(10, 5))
-	plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
-	plt.xlabel('Episodes')
-	plt.ylabel('Reward')
-	plt.title('Reward vs Episodes')
-	plt.grid(True)
-	plt.savefig('reward_vs_episodes.png')
-	data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
-	df = pd.DataFrame(data)
-	df.to_csv('reward_vs_episodes.csv', index=False)
+	# plt.figure(figsize=(10, 5))
+	# plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
+	# plt.xlabel('Episodes')
+	# plt.ylabel('Reward')
+	# plt.title('Reward vs Episodes')
+	# plt.grid(True)
+	# plt.savefig('reward_vs_episodes.png')
+	# data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
+	# df = pd.DataFrame(data)
+	# df.to_csv('reward_vs_episodes.csv', index=False)
 
-	# runner.agent_n.load_model()
-	# runner.evaluate_policy()
+	runner.agent_n.load_model()
+	runner.evaluate_policy()
 

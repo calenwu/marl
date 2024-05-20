@@ -154,17 +154,16 @@ class CatMouse(gym.Env):
         Moves prey's positions according to their specified behavior
         """
         # assume uniform random movement of prey
-        pass
-        # for i in range(self.n_prey):
-        #     cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
-        #     if self.prey["caught"][i]:
-        #         continue
-        #     direction = 2 * np.pi * np.random.uniform()
-        #     move_x = self.step_size * math.cos(direction)
-        #     move_y = self.step_size * math.sin(direction)
+        for i in range(self.n_prey):
+            cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
+            if self.prey["caught"][i]:
+                continue
+            direction = 2 * np.pi * np.random.uniform()
+            move_x = self.step_size * math.cos(direction)
+            move_y = self.step_size * math.sin(direction)
             
-        #     self.prey["position"][i][0] = min(max(0,cur_x + move_x),1)
-        #     self.prey["position"][i][1] = max(min(1,cur_y + move_y),0)
+            self.prey["position"][i][0] = min(max(0,cur_x + move_x),1)
+            self.prey["position"][i][1] = max(min(1,cur_y + move_y),0)
 
     def render(self):
         self._render_frame()

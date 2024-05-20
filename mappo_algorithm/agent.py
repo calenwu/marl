@@ -7,6 +7,7 @@ from torch.utils.data.sampler import *
 import numpy as np
 import numpy.typing as npt
 
+import matplotlib.pyplot as plt
 
 # Trick 8: orthogonal initialization
 def orthogonal_init(layer, gain=1.0):
@@ -18,7 +19,7 @@ def orthogonal_init(layer, gain=1.0):
 
 
 class Actor_MLP(nn.Module):
-	def __init__(self, obs_dim: int, action_dim: int, hidden_dim=256, continuous=False):
+	def __init__(self, obs_dim: int, action_dim: int, hidden_dim=16, continuous=False):
 		super(Actor_MLP, self).__init__()
 		activation_func = nn.Tanh() if continuous else nn.ReLU()
 		self.fc1 = nn.Linear(obs_dim, hidden_dim)
@@ -27,7 +28,7 @@ class Actor_MLP(nn.Module):
 		self.fc3 = nn.Linear(hidden_dim, 2) if continuous else nn.Linear(hidden_dim, action_dim)
 		orthogonal_init(self.fc1)
 		orthogonal_init(self.fc2)
-		orthogonal_init(self.fc4)
+		# orthogonal_init(self.fc4)
 		orthogonal_init(self.fc3, gain=0.01)
 		if continuous:
 			self.actor = nn.Sequential(
@@ -35,8 +36,8 @@ class Actor_MLP(nn.Module):
 				activation_func,
 				self.fc2,
 				activation_func,
-				self.fc4,
-				activation_func,
+				# self.fc4,
+				# activation_func,
 				self.fc3,
 				nn.Tanh(),
 			)
@@ -62,7 +63,7 @@ class Actor_MLP(nn.Module):
 
 
 class Critic_MLP(nn.Module):
-	def __init__(self, global_state_dim: int, hidden_dim=256):
+	def __init__(self, global_state_dim: int, hidden_dim=16):
 		super(Critic_MLP, self).__init__()
 		self.fc1 = nn.Linear(global_state_dim, hidden_dim)
 		self.fc2 = nn.Linear(hidden_dim, hidden_dim)
@@ -70,14 +71,14 @@ class Critic_MLP(nn.Module):
 		self.fc3 = nn.Linear(hidden_dim, 1)
 		orthogonal_init(self.fc1)
 		orthogonal_init(self.fc2)
-		orthogonal_init(self.fc4)
+		# orthogonal_init(self.fc4)
 		orthogonal_init(self.fc3)
 		self.critic = nn.Sequential(
 			self.fc1,
 			nn.ReLU(),
 			self.fc2,
-			nn.ReLU(),
-			self.fc4,
+			# nn.ReLU(),
+			# self.fc4,
 			nn.ReLU(),
 			self.fc3
 		)
@@ -95,8 +96,10 @@ class Critic_MLP(nn.Module):
 
 class Agent:
 	def __init__(self, continuous: bool, n_agents: int, state_dim: int, obs_dim: int, action_dim: int,
-			episode_limit=25, batch_size=32, mini_batch_size=8, max_train_steps=int(3e6),
+			episode_limit=25, batch_size=32, mini_batch_size=32, max_train_steps=int(3e6),
 			lr=5e-4, gamma=0.99, lambda_=0.95, epsilon=0.2, K_epochs=15, entropy_coef=0.01,):
+		self.plotter_x = []
+		self.plotter_y = []
 		self.continuous = continuous
 
 		self.N = n_agents
@@ -212,12 +215,27 @@ class Agent:
 
 				critic_loss = (values_now - v_target[index]) ** 2
 
+				self.plotter_x.append(len(self.plotter_x) + 1)
+				self.plotter_y.append(actor_loss.mean().item())
+
 				self.ac_optimizer.zero_grad()
 				ac_loss = actor_loss.mean() + critic_loss.mean()
 				ac_loss.backward()
+
+				# Print gradients before clipping
+				# for name, param in self.actor.named_parameters():
+				# 	if param.requires_grad:
+				# 		print(name, param.grad)
 				# Clip Gradient
 				torch.nn.utils.clip_grad_norm_(self.ac_parameters, 10.0)
 				self.ac_optimizer.step()
+
+				# if len(self.plotter_x) > 10000:
+				# 	# print a plot and save it with the self.plotter_x and self.plotter_y
+				# 	plt.plot(self.plotter_x, self.plotter_y)
+				# 	plt.savefig('/Users/georgye/Documents/repos/ml/backprop/plots/ppo.png')
+				# 	plt.close()
+				# 	raise Exception('plotted')
 
 		# learning ratge decay
 		lr_now = self.lr * (1 - total_steps / self.max_train_steps)
