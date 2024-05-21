@@ -41,11 +41,11 @@ class PpoMemory:
 		self.dones = []
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
 		self.actor = nn.Sequential(
-			nn.Linear(*input_dims, fc1_dims),
+			nn.Linear(input_dims, fc1_dims),
 			nn.ReLU(),
 			nn.Linear(fc1_dims, fc2_dims),
 			nn.ReLU(),
@@ -68,11 +68,11 @@ class ActorNetwork(nn.Module):
 		self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
 		super(CriticNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
 		self.critic = nn.Sequential(
-			nn.Linear(*input_dims, fc1_dims),
+			nn.Linear(input_dims, fc1_dims),
 			nn.ReLU(),
 			nn.Linear(fc1_dims, fc2_dims),
 			nn.ReLU(),
@@ -125,12 +125,11 @@ class Agent:
 		dist = self.actor(state)
 		value = self.critic(state)
 		action = dist.sample()
-		
 
 		probs = T.squeeze(dist.log_prob(action)).item()
 		action = T.squeeze(action).item()
 		value = T.squeeze(value).item()
-		return action, probs, value, T.softmax(dist.logits, dim=-1)
+		return action, probs, value
 
 	def learn(self):
 		for _ in range(self.n_epochs):
