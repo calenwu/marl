@@ -19,13 +19,14 @@ def orthogonal_init(layer, gain=1.0):
 
 
 class Actor_MLP(nn.Module):
-	def __init__(self, obs_dim: int, action_dim: int, hidden_dim=16, continuous=False):
+	def __init__(self, obs_dim: int, action_dim: int, hidden_dim=64, continuous=False):
 		super(Actor_MLP, self).__init__()
+		self.continuous = continuous
 		activation_func = nn.Tanh() if continuous else nn.ReLU()
 		self.fc1 = nn.Linear(obs_dim, hidden_dim)
 		self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-		self.fc4 = nn.Linear(hidden_dim, hidden_dim)
 		self.fc3 = nn.Linear(hidden_dim, 2) if continuous else nn.Linear(hidden_dim, action_dim)
+		self.activate_func = nn.Tanh()
 		orthogonal_init(self.fc1)
 		orthogonal_init(self.fc2)
 		# orthogonal_init(self.fc4)
@@ -36,8 +37,6 @@ class Actor_MLP(nn.Module):
 				activation_func,
 				self.fc2,
 				activation_func,
-				# self.fc4,
-				# activation_func,
 				self.fc3,
 				nn.Tanh(),
 			)
@@ -52,7 +51,12 @@ class Actor_MLP(nn.Module):
 			)
 
 	def forward(self, observation):
-		return self.actor(observation)
+		x = self.activate_func(self.fc1(observation))
+		x = self.activate_func(self.fc2(x))
+		if self.continuous:
+			return torch.tanh(self.fc3(x))
+		prob = torch.softmax(self.fc3(x), dim=-1)
+		return prob
 
 	def save_checkpoint(self, filename='./checkpoints/mapppo_actor.pth'):
 		os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -63,28 +67,22 @@ class Actor_MLP(nn.Module):
 
 
 class Critic_MLP(nn.Module):
-	def __init__(self, global_state_dim: int, hidden_dim=16):
+	def __init__(self, global_state_dim: int, hidden_dim=64):
 		super(Critic_MLP, self).__init__()
 		self.fc1 = nn.Linear(global_state_dim, hidden_dim)
 		self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-		self.fc4 = nn.Linear(hidden_dim, hidden_dim)
 		self.fc3 = nn.Linear(hidden_dim, 1)
+		self.activate_func = nn.Tanh()
 		orthogonal_init(self.fc1)
 		orthogonal_init(self.fc2)
 		# orthogonal_init(self.fc4)
 		orthogonal_init(self.fc3)
-		self.critic = nn.Sequential(
-			self.fc1,
-			nn.ReLU(),
-			self.fc2,
-			# nn.ReLU(),
-			# self.fc4,
-			nn.ReLU(),
-			self.fc3
-		)
 
 	def forward(self, global_state: npt.NDArray):
-		return self.critic(global_state)
+		x = self.activate_func(self.fc1(global_state))
+		x = self.activate_func(self.fc2(x))
+		value = self.fc3(x)
+		return value
 
 	def save_checkpoint(self, filename='./checkpoints/mapppo_critic.pth'):
 		os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -96,14 +94,14 @@ class Critic_MLP(nn.Module):
 
 class Agent:
 	def __init__(self, continuous: bool, n_agents: int, state_dim: int, obs_dim: int, action_dim: int,
-			episode_limit=25, batch_size=32, mini_batch_size=32, max_train_steps=int(3e6),
-			lr=5e-4, gamma=0.99, lambda_=0.95, epsilon=0.2, K_epochs=15, entropy_coef=0.01,):
+			episode_limit=25, batch_size=64, mini_batch_size=64, max_train_steps=int(3e6),
+			lr=5e-4, gamma=0.99, lambda_=0.95, epsilon=0.2, K_epochs=15, entropy_coef=0.1,):
 		self.plotter_x = []
 		self.plotter_y = []
 		self.continuous = continuous
 
 		self.N = n_agents
-		self.action_dim = state_dim
+		self.action_dim = action_dim
 		self.obs_dim = obs_dim
 		self.state_dim = state_dim
 
@@ -130,8 +128,8 @@ class Agent:
 			actor_inputs = []
 			obs_n = torch.tensor(obs_n, dtype=torch.float32)
 			actor_inputs.append(obs_n)
-
-			actor_inputs = torch.cat(actor_inputs, dim=-1)
+			actor_inputs = torch.cat([x for x in actor_inputs], dim=-1)
+			# actor_inputs = torch.cat(actor_inputs, dim=-1)
 			if self.continuous:
 				temp = self.actor(actor_inputs)
 				tensor1, tensor2 = torch.split(temp, split_size_or_sections=1, dim=1)
@@ -144,9 +142,9 @@ class Agent:
 				a_logprob_n = dist.log_prob(a_n)
 				return a_n.numpy(), a_logprob_n.numpy()
 			prob = self.actor(actor_inputs)
-			# if evaluate:
-			# 	a_n = prob.argmax(dim=-1)
-			# 	return a_n.numpy(), None
+			if evaluate:
+				a_n = prob.argmax(dim=-1)
+				return a_n.numpy(), None
 			dist = Categorical(probs=prob)
 			a_n = dist.sample()
 			a_logprob_n = dist.log_prob(a_n)
@@ -215,8 +213,6 @@ class Agent:
 
 				critic_loss = (values_now - v_target[index]) ** 2
 
-				self.plotter_x.append(len(self.plotter_x) + 1)
-				self.plotter_y.append(actor_loss.mean().item())
 
 				self.ac_optimizer.zero_grad()
 				ac_loss = actor_loss.mean() + critic_loss.mean()
@@ -229,13 +225,8 @@ class Agent:
 				# Clip Gradient
 				torch.nn.utils.clip_grad_norm_(self.ac_parameters, 10.0)
 				self.ac_optimizer.step()
-
-				# if len(self.plotter_x) > 10000:
-				# 	# print a plot and save it with the self.plotter_x and self.plotter_y
-				# 	plt.plot(self.plotter_x, self.plotter_y)
-				# 	plt.savefig('/Users/georgye/Documents/repos/ml/backprop/plots/ppo.png')
-				# 	plt.close()
-				# 	raise Exception('plotted')
+				# self.plotter_x.append(len(self.plotter_x) + 1)
+				# self.plotter_y.append(actor_loss.mean().item())
 
 		# learning ratge decay
 		lr_now = self.lr * (1 - total_steps / self.max_train_steps)
@@ -258,3 +249,10 @@ class Agent:
 	def load_model(self):
 		self.actor.load_checkpoint()
 		self.critic.load_checkpoint()
+
+				# if len(self.plotter_x) > 10000:
+				# 	# print a plot and save it with the self.plotter_x and self.plotter_y
+				# 	plt.plot(self.plotter_x, self.plotter_y)
+				# 	plt.savefig('/Users/georgye/Documents/repos/ml/backprop/plots/ppo.png')
+				# 	plt.close()
+				# 	raise Exception('plotted')
