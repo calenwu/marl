@@ -11,36 +11,11 @@ from pettingzoo.mpe import simple_spread_v3
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
 
 
-
-def make_env(episode_limit, render_mode='None'):
-	env = simple_spread_v3.parallel_env(N=3, max_cycles=episode_limit, local_ratio=0.5,
-		render_mode='human', continuous_actions=False)
-	env.reset(seed=42)
-	env.n_agents = env.num_agents
-	env.obs_dim = [env.observation_spaces[agent].shape[0] for agent in env.agents][0]
-	# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
-	env.state_dim = env.obs_dim * env.num_agents
-	env.action_dim = 5
-	# env = CatMouseMA(observation_radius=10, n_agents=1, n_prey=2)
-
-	# env.obs_dim = env.n_agents * 3 + env.n_prey * 3
-	# env.state_dim = 2 * env.n_agents + 3 * env.n_prey
-	# env.obs_dim = 8
-	# env.state_dim = 8
-	# env.action_dim = 4
-	# env.reset()
-	return env
-
-
-eps = []
-rewards = []
-
-
 def trans_obs(obs):
 	ret = []
 	for agent_obs in obs:
 		temp = []
-		# temp.append(agent_obs['agents']['cur_agent'])
+		temp.append(agent_obs['agents']['cur_agent'])
 		for agent_pos in agent_obs['agents']['position']:
 			temp.append(agent_pos)
 		for prey_pos in agent_obs['prey']['position']:
@@ -68,6 +43,75 @@ def get_action(action):
 	return action_dict[action]
 
 
+class SimpleSpreadV3:
+	def __init__(self):
+		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
+			render_mode='human',
+			continuous_actions=False)
+		self.env.reset(seed=42)
+		self.n_agents = self.env.num_agents
+		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
+		self.state_dim = self.obs_dim * self.n_agents
+		self.action_dim = 5
+		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
+
+	def reset(self):
+		obs_n, info = self.env.reset()
+		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
+		return obs_n, info
+
+	def step(self, a_n):
+		actions = {}
+		for i, agent in enumerate(self.env.agents):
+			actions[agent] = a_n[i]
+		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
+		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
+		done_n = np.array([val for val in done_n.values()])
+		r_n = list(r_n.values())
+		return obs_next_n, r_n, done_n, trunc, info
+
+	def render(self):
+		self.env.render()
+
+	def close(self):
+		self.env.close()
+
+
+class CatMouse:
+	def __init__(self):
+		self.env = CatMouseMA(observation_radius=10, n_agents=2, n_prey=4)
+		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
+		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
+		# self.state_dim = 2
+		# self.obs_dim = 2
+		self.n_agents = self.env.n_agents
+		self.action_dim = 4
+		self.env.reset()
+
+	def reset(self):
+		obs_n, info = self.env.reset()
+		obs_n = np.array(trans_obs(obs_n))
+		return obs_n, info
+
+	def step(self, a_n):
+		obs_next_n, r_n, done_n, trunc, info = self.env.step([get_action(a) for a in a_n])
+		obs_next_n = trans_obs(obs_next_n)
+		done_n = [done_n]
+		return obs_next_n, r_n, done_n, trunc, info
+	def get_global_obs(self):
+		return self.env.get_global_obs()
+	
+	def render(self):
+		self.env.render()
+
+	def close(self):
+		self.env.close()
+
+
+eps = []
+rewards = []
+
+
 class Runner_MAPPO:
 	def __init__(self, env_name, number, seed):
 		self.env_name = env_name
@@ -77,11 +121,13 @@ class Runner_MAPPO:
 		np.random.seed(self.seed)
 		torch.manual_seed(self.seed)
 
-		self.episode_limit = 50
-		self.max_train_steps = 1000000
-		self.evaluate_freq = 1000
+		self.episode_limit = 25
+		self.max_train_steps = 2000000
+		self.evaluate_freq = 200
 
-		self.env = make_env(self.episode_limit, render_mode=None)
+		# self.env = make_env(self.episode_limit, render_mode=None)
+		# self.env = SimpleSpreadV3()
+		self.env = CatMouse()
 		self.n_agents = self.env.n_agents
 		self.obs_dim = self.env.obs_dim
 		self.action_dim = self.env.action_dim
@@ -107,41 +153,22 @@ class Runner_MAPPO:
 		episode_reward = 0
 		obs_n, info = self.env.reset()
 
-		# cat_mouse
-		# obs_n = np.array(trans_obs(obs_n))
-
-		# simple_spread
-		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
-
 		for episode_step in range(self.episode_limit):
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)  # Get actions and the corresponding log probabilities of N agents
 
 			# cat_mouse
-			# a_n = np.array([get_action(x) for x in a_n])
-			# s = trans_state(self.env.get_global_obs())
+			s = trans_state(self.env.get_global_obs())
 
 			# simple_spread
 			# stay, right, left, top, bottom
 			# a_n = [np.array([0,0,0.5,1,0.5]) for _ in range(self.n_agents)]
-			s = obs_n.flatten()
+			# s = obs_n.flatten()
 
 			v_n = self.agent_n.get_value(s)  # Get the state values (V(s)) of N agents
 
-
-			# cat_mouse
-			# obs_next_n, r_n, done_n, _, _ = self.env.step(a_n)
-			# obs_next_n = trans_obs(obs_next_n)
-			# done_n = [done_n]
+			obs_next_n, r_n, done_n, _, _ = self.env.step(a_n)
 			# episode_reward += sum(r_n)
-
-			# simple_spread
-			actions = {}
-			for i, agent in enumerate(self.env.agents):
-				actions[agent] = a_n[i]
-			obs_next_n, r_n, done_n, _, _ = self.env.step(actions)
-			obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
-			done_n = np.array([val for val in done_n.values()])
-			episode_reward += sum(list(r_n.values()))
+			episode_reward += r_n[0]
 
 			if evaluate:
 				time.sleep(0.1)
@@ -149,13 +176,7 @@ class Runner_MAPPO:
 				self.env.render()
 
 			if not evaluate:
-				#simple_spread
-				r_n = self.reward_norm([r for r in r_n.values()])
-				# print('obs_n: ', obs_n)
-				# print('v_n: ', v_n)
-				# print('a_n: ', a_n)
-				# print('a_logprob_n: ', a_logprob_n)
-				# print('r_n: ', r_n)
+				r_n = self.reward_norm([r_n])
 				self.buffer.store_transition(episode_step, obs_n, s, v_n, a_n, a_logprob_n, r_n, done_n)
 
 			obs_n = np.array(obs_next_n)
@@ -165,10 +186,10 @@ class Runner_MAPPO:
 		if not evaluate:
 			# Store v_n in the last step
 			# cat_mouse
-			# s = trans_state(self.env.get_global_obs())
+			s = trans_state(self.env.get_global_obs())
 
 			#simple_spread
-			s = np.array(obs_n).flatten()
+			# s = np.array(obs_n).flatten()
 
 			v_n = self.agent_n.get_value(s)
 			self.buffer.store_last_value(episode_step + 1, v_n)
@@ -198,7 +219,7 @@ class Runner_MAPPO:
 			episode_reward, _ = self.run_episode(evaluate=True)
 			evaluate_reward += episode_reward
 
-		evaluate_reward /= 5
+		evaluate_reward /= 1
 		self.evaluate_rewards.append(evaluate_reward)
 		self.evaluate_rewards_timestep.append(self.total_steps)
 
@@ -224,4 +245,3 @@ if __name__ == '__main__':
 
 	runner.agent_n.load_model()
 	runner.evaluate_policy()
-
