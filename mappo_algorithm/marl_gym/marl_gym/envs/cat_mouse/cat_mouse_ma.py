@@ -151,8 +151,8 @@ class CatMouseMA(gym.Env):
         next_state, info = self._get_obs()
 
         reward = self._calc_reward()
-        reward += 100 * self._check_caught()
-        # reward += ((np.count_nonzero(self.prey["caught"] == 1) + 1) ** 4) * 100 * self._check_caught()
+        # reward += 100 * self._check_caught()
+        reward += ((np.count_nonzero(self.prey["caught"] == 1) + 1) ** 4) * 100 * self._check_caught()
         
         terminated = np.all(self.prey["caught"])
 
@@ -210,11 +210,16 @@ class CatMouseMA(gym.Env):
         Moves prey's positions according to their specified behavior
         """
         # assume uniform random movement of prey
-        pass
+        # pass
         # for i in range(self.n_prey):
         #     cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
         #     if self.prey["caught"][i]:
-        #         continue
+        #         for j in range(self.n_agents):
+        #             if self.prey['caught'][j]:
+        #                 continue
+        #             self.prey["position"][i] = self.prey["position"][j]
+        #             return
+                    
         #     direction = 2 * np.pi * np.random.uniform()
         #     move_x = self.step_size * math.cos(direction)
         #     move_y = self.step_size * math.sin(direction)
@@ -251,6 +256,9 @@ class CatMouseMA(gym.Env):
             for j in range(self.n_prey):
                 if not self.prey["caught"][j] and self.agent_mouse_obs_matrix[i][j]:
                     min_dist = min(min_dist, self.agent_prey_dists[i][j])
+                    if np.count_nonzero(self.prey["caught"] == 1) >= 1:
+                        min_dist = 0
+                    # min_dist /= ((np.count_nonzero(self.prey["caught"] == 1) + 1) * 5 ** 4)
             reward[i] -= min_dist
         return reward
 
