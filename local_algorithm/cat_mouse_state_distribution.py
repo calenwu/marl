@@ -73,7 +73,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             cov_sum = 0
             min_cov = self.ini_var
             for j in range(len(num_comm)):
-                cov = distributions[j].agent_pos_distribution.convariance[0][0]
+                cov = distributions[j].agent_pos_distribution.covariance_matrix[0][0]
                 mean += distributions[j].agent_pos_distribution.mean/cov
                 cov_sum += 1/cov
                 min_cov += min(min_cov, cov)
@@ -85,7 +85,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             cov_sum = 0
             min_cov = self.ini_var
             for j in range(len(num_comm)):
-                cov = distributions[j].mouse_pos_distribution.convariance[0][0]
+                cov = distributions[j].mouse_pos_distribution.covariance_matrix[0][0]
                 mean += distributions[j].mouse_pos_distribution.mean/cov
                 cov_sum += 1/cov
                 min_cov += min(min_cov, cov)
@@ -96,5 +96,19 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             max_prob = 0
             for j in range(len(num_comm)):
                 max_prob = max(max_prob, distributions[j].mouse_found_distribution[i].probs)
-
+    
+    def get_belief_state(self):
+        state = []
+        for i in range(self.num_agents):
+            state.append(self.agent_pos_distribution[i].mean[0])
+            state.append(self.agent_pos_distribution[i].mean[1])
+            state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
+            state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
+        for i in range(self.num_mice):
+            state.append(self.mouse_pos_distribution[i].mean[0])
+            state.append(self.mouse_pos_distribution[i].mean[1])
+            state.append(self.mouse_pos_distribution[i].covariance_matrix[0][0])
+            state.append(self.mouse_pos_distribution[i].covariance_matrix[1][1])
+            state.append(self.mouse_found_distribution[i].probs)
+        return state
         
