@@ -1,7 +1,8 @@
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import *
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse import *
+from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import *
 
-env = CatMouseMA()
+env = CatMouseMAD()
 
 state, info = env.reset()
 for _ in range(100):
