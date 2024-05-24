@@ -27,16 +27,19 @@ def trans_obs(obs):
 
 def trans_obs_discrete(obs):
 	ret = []
-	agent_grid = obs["agent_grid"].flatten()
-	prey_grid = obs["agent_grid"].flatten()
-	agent_pos = obs["agent_pos"]
-	agent_id = obs["agent_id"]
-	ret.append(agent_grid)
-	ret.append(prey_grid)
-	ret.append(agent_pos)
-	ret.append(agent_id)
-	ret = np.array(ret)
-	return np.concatenate(ret)
+	for ob in obs:
+		temp = []
+		agent_grid = ob["agent_grid"].flatten()
+		prey_grid = ob["agent_grid"].flatten()
+		agent_pos = ob["agent_pos"]
+		agent_id = np.array([ob["agent_id"]])
+		temp.append(agent_grid)
+		temp.append(prey_grid)
+		temp.append(agent_pos)
+		temp.append(agent_id)
+		temp = np.concatenate(temp)
+		ret.append(temp)
+	return np.array(ret)
 
 def trans_state(state):
 	ret = []
@@ -55,8 +58,8 @@ def trans_state_discrete(state):
 	ret.append(agent_grid)
 	ret.append(prey_grid)
 	ret.append(agent_pos)
-	ret = np.array(ret)
-	return np.concatenate(ret)
+	ret = np.concatenate(ret)
+	return ret
 
 def get_action(action):
 	action_dict = {
@@ -82,48 +85,49 @@ def get_action_discrete(action):
 	return ACTION_LIST[action]
 
 
-# class SimpleSpreadV3:
-# 	def __init__(self):
-# 		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
-# 			render_mode='human',
-# 			continuous_actions=False)
-# 		self.env.reset(seed=42)
-# 		self.n_agents = self.env.num_agents
-# 		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
-# 		self.state_dim = self.obs_dim * self.n_agents
-# 		self.action_dim = 5
-# 		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
+class SimpleSpreadV3:
+	def __init__(self):
+		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
+			render_mode='human',
+			continuous_actions=False)
+		self.env.reset(seed=42)
+		self.n_agents = self.env.num_agents
+		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
+		self.state_dim = self.obs_dim * self.n_agents
+		self.action_dim = 5
+		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
-# 	def reset(self):
-# 		obs_n, info = self.env.reset()
-# 		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
-# 		return obs_n, info
+	def reset(self):
+		obs_n, info = self.env.reset()
+		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
+		return obs_n, info
 
-# 	def step(self, a_n):
-# 		actions = {}
-# 		for i, agent in enumerate(self.env.agents):
-# 			actions[agent] = a_n[i]
-# 		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
-# 		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
-# 		done_n = np.array([val for val in done_n.values()])
-# 		r_n = list(r_n.values())
-# 		return obs_next_n, r_n, done_n, trunc, info
+	def step(self, a_n):
+		actions = {}
+		for i, agent in enumerate(self.env.agents):
+			actions[agent] = a_n[i]
+		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
+		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
+		done_n = np.array([val for val in done_n.values()])
+		r_n = list(r_n.values())
+		return obs_next_n, r_n, done_n, trunc, info
 
-# 	def render(self):
-# 		self.env.render()
+	def render(self):
+		self.env.render()
 
-# 	def close(self):
-# 		self.env.close()
+	def close(self):
+		self.env.close()
 
 
 class CatMouse:
 	def __init__(self):
-		self.env = CatMouseMAD(observation_radius=10, n_agents=2, n_prey=4)
-		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
-		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
-		# self.state_dim = 2
-		# self.obs_dim = 2
+		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4)
+		# self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
+		# self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
+		self.state_dim = 54
+		self.obs_dim = 53
 		self.action_dim = 9
+		self.n_agents = self.env.n_agents
 		self.env.reset()
 
 	def reset(self):
