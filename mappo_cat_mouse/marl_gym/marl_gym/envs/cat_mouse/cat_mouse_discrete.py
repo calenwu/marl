@@ -137,10 +137,6 @@ class CatMouseMAD(gym.Env):
         next_state, info = self._get_obs()
 
         reward = self._calc_reward(caught, collision)
-<<<<<<< HEAD
-        print(reward)
-=======
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
         
         terminated = not np.any(self.prey)
 
@@ -165,11 +161,7 @@ class CatMouseMAD(gym.Env):
             cur_action = ACTION_LIST[a]
             self.agents[self.agent_pos[i][0],self.agent_pos[i][1]] -= 1
             clipped = np.clip(self.agent_pos[i] + cur_action, 0, self.grid_size-1)
-<<<<<<< HEAD
-            if not np.array_equal(clipped,self.agent_pos[i] + cur_action):
-=======
             if ~np.array_equal(clipped,self.agent_pos[i] + cur_action):
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
                 collision[i] = 1
             self.agent_pos[i] = clipped
             self.agents[self.agent_pos[i][0],self.agent_pos[i][1]] += 1
@@ -179,14 +171,6 @@ class CatMouseMAD(gym.Env):
         """
         Moves prey's positions according to their specified behavior
         """
-<<<<<<< HEAD
-        # runaway
-        # for i in range(self.grid_size):
-        #     for j in range(self.grid_size):
-        #         if self.prey[i][j] > 0:
-
-=======
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
         pass
 
     def _check_caught(self):
@@ -209,11 +193,7 @@ class CatMouseMAD(gym.Env):
         Calculates reward based on current environment state.
         :return: reward score
         """
-<<<<<<< HEAD
-        reward = np.full(self.n_agents,self.step_cost)
-=======
         reward = np.full((self.n_agents,),self.step_cost)
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
         reward += caught * 10
         reward -= collision
         return reward
