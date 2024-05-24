@@ -6,6 +6,7 @@ env = CatMouseMAD()
 
 state, info = env.reset()
 for _ in range(100):
+    print(state)
     action = env.action_space.sample()
     next_state, reward, terminated, truncated, info = env.step(action)
     state = next_state
