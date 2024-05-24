@@ -7,12 +7,8 @@ import pandas as pd
 from normalization import Normalization
 from buffer import Buffer
 from agent import Agent
-<<<<<<< HEAD
-# from pettingzoo.mpe import simple_spread_v3
-=======
 from pettingzoo.mpe import simple_spread_v3
 # from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 
@@ -122,18 +118,9 @@ def get_action_discrete(action):
 
 class CatMouse:
 	def __init__(self):
-<<<<<<< HEAD
-		self.env = CatMouseMAD(n_agents=2, n_prey=4)
-		obs_radius = self.env.observation_radius
-		grid_size = self.env.grid_size
-		self.n_agents = self.env.n_agents
-		self.state_dim = (grid_size ** 2) * 2 + 2 * self.n_agents
-		self.obs_dim = ((obs_radius * 2 + 1) ** 2) * 2 + 2 + 1
-=======
 		self.env = CatMouseMAD(observation_radius=10, n_agents=2, n_prey=4)
 		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
->>>>>>> 432fcaa0d96e7fb388bec474a992d12f48bd8aab
 		# self.state_dim = 2
 		# self.obs_dim = 2
 		self.action_dim = 9
@@ -280,19 +267,19 @@ class Runner_MAPPO:
 
 if __name__ == '__main__':
 	runner = Runner_MAPPO(env_name='simple_spread_v3', number=3, seed=0)
-	# runner.train()
-	# runner.agent_n.save_model()
+	runner.train()
+	runner.agent_n.save_model()
 
-	# plt.figure(figsize=(10, 5))
-	# plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
-	# plt.xlabel('Episodes')
-	# plt.ylabel('Reward')
-	# plt.title('Reward vs Episodes')
-	# plt.grid(True)
-	# plt.savefig('reward_vs_episodes.png')
-	# data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
-	# df = pd.DataFrame(data)
-	# df.to_csv('reward_vs_episodes.csv', index=False)
+	plt.figure(figsize=(10, 5))
+	plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
+	plt.xlabel('Episodes')
+	plt.ylabel('Reward')
+	plt.title('Reward vs Episodes')
+	plt.grid(True)
+	plt.savefig('reward_vs_episodes.png')
+	data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
+	df = pd.DataFrame(data)
+	df.to_csv('reward_vs_episodes.csv', index=False)
 
-	runner.agent_n.load_model()
-	runner.evaluate_policy()
+	# runner.agent_n.load_model()
+	# runner.evaluate_policy()
