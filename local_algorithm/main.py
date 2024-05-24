@@ -43,6 +43,6 @@ def train_cat_mouse(num_episodes = 5000):
     
 
 def __main__():
-    train_cat_mouse(100)
+    train_cat_mouse(5000)
 
 __main__()

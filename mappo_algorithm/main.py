@@ -8,7 +8,8 @@ from normalization import Normalization
 from buffer import Buffer
 from agent import Agent
 from pettingzoo.mpe import simple_spread_v3
-from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
+# from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
+from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 
 def trans_obs(obs):
@@ -79,7 +80,7 @@ class SimpleSpreadV3:
 
 class CatMouse:
 	def __init__(self):
-		self.env = CatMouseMA(observation_radius=10, n_agents=2, n_prey=4)
+		self.env = CatMouseMAD(observation_radius=10, n_agents=2, n_prey=4)
 		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
 		# self.state_dim = 2
