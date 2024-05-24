@@ -142,8 +142,8 @@ class CatMouseMAD(gym.Env):
 
         truncated = False
 
-        if terminated:
-            next_state = None
+        # if terminated:
+        #     next_state = None
 
         self.steps =+ 1
         if self.max_iter:
@@ -158,7 +158,8 @@ class CatMouseMAD(gym.Env):
         """
         collision = np.zeros((self.n_agents,),dtype=int)
         for i,a in enumerate(action):
-            cur_action = ACTION_LIST[a]
+            # cur_action = ACTION_LIST[a]
+            cur_action = a
             self.agents[self.agent_pos[i][0],self.agent_pos[i][1]] -= 1
             clipped = np.clip(self.agent_pos[i] + cur_action, 0, self.grid_size-1)
             if ~np.array_equal(clipped,self.agent_pos[i] + cur_action):

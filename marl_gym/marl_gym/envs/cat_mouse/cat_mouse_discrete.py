@@ -137,8 +137,7 @@ class CatMouseMAD(gym.Env):
         next_state, info = self._get_obs()
 
         reward = self._calc_reward(caught, collision)
-        print(reward)
-        
+
         terminated = not np.any(self.prey)
 
         truncated = False
@@ -149,7 +148,9 @@ class CatMouseMAD(gym.Env):
         self.steps =+ 1
         if self.max_iter:
             truncated = self.steps < self.max_iter
-
+        if truncated:
+            reward -= 10
+            
         return next_state, reward, terminated, truncated, info
     
     def _move_agents(self, action):

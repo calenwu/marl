@@ -7,7 +7,7 @@ import pandas as pd
 from normalization import Normalization
 from buffer import Buffer
 from agent import Agent
-from pettingzoo.mpe import simple_spread_v3
+# from pettingzoo.mpe import simple_spread_v3
 # from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
@@ -85,38 +85,38 @@ def get_action_discrete(action):
 	return ACTION_LIST[action]
 
 
-class SimpleSpreadV3:
-	def __init__(self):
-		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
-			render_mode='human',
-			continuous_actions=False)
-		self.env.reset(seed=42)
-		self.n_agents = self.env.num_agents
-		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
-		self.state_dim = self.obs_dim * self.n_agents
-		self.action_dim = 5
-		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
+# class SimpleSpreadV3:
+# 	def __init__(self):
+# 		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
+# 			render_mode='human',
+# 			continuous_actions=False)
+# 		self.env.reset(seed=42)
+# 		self.n_agents = self.env.num_agents
+# 		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
+# 		self.state_dim = self.obs_dim * self.n_agents
+# 		self.action_dim = 5
+# 		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
-	def reset(self):
-		obs_n, info = self.env.reset()
-		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
-		return obs_n, info
+# 	def reset(self):
+# 		obs_n, info = self.env.reset()
+# 		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
+# 		return obs_n, info
 
-	def step(self, a_n):
-		actions = {}
-		for i, agent in enumerate(self.env.agents):
-			actions[agent] = a_n[i]
-		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
-		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
-		done_n = np.array([val for val in done_n.values()])
-		r_n = list(r_n.values())
-		return obs_next_n, r_n, done_n, trunc, info
+# 	def step(self, a_n):
+# 		actions = {}
+# 		for i, agent in enumerate(self.env.agents):
+# 			actions[agent] = a_n[i]
+# 		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
+# 		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
+# 		done_n = np.array([val for val in done_n.values()])
+# 		r_n = list(r_n.values())
+# 		return obs_next_n, r_n, done_n, trunc, info
 
-	def render(self):
-		self.env.render()
+# 	def render(self):
+# 		self.env.render()
 
-	def close(self):
-		self.env.close()
+# 	def close(self):
+# 		self.env.close()
 
 
 class CatMouse:
