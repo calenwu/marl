@@ -40,7 +40,7 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
             self.agent_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2], loc_obs[3]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
             
         for i in range(self.num_targets):
-            self.target_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2]+loc_obs[3], loc_obs[3]+loc_obs[4]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
+            self.target_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2] + loc_obs[4], loc_obs[3] + loc_obs[5]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
     @staticmethod
     def update_estimation_communication(self, distributions):
         num_comm = len(distributions)

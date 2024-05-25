@@ -41,14 +41,14 @@ class PpoMemory:
 		self.dones = []
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, input_dims, alpha, fc1_dims=64, fc2_dims=64, chkpt_dir='tmp/ppo'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
 		self.actor = nn.Sequential(
 			nn.Linear(*input_dims, fc1_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc2_dims, n_actions),
 			nn.Softmax(dim=-1)
 		)
@@ -65,10 +65,10 @@ class ActorNetwork(nn.Module):
 		T.save(self.state_dict(), self.checkpoint_file)
 
 	def load_checkpoint(self):
-		self.load_state_dict(T.load(self.checkpoint_file))
+		4
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+	def __init__(self, input_dims, alpha, fc1_dims=64, fc2_dims=64, chkpt_dir='tmp/ppo'):
 		super(CriticNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
 		self.critic = nn.Sequential(
