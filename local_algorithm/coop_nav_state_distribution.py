@@ -12,7 +12,7 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
         self.ini_var = 10
         self.agent_pos_distribution = []
         self.target_pos_distribution = []
-        for i in range(self.num_agents):
+        for i in range(self.num_agents-1):
             position_mean = torch.Tensor([0.5, 0.5])
             position_var = torch.Tensor([[self.ini_var, 0],[0, self.ini_var]])
             agent_pos_i_distribution = MultivariateNormal(position_mean, position_var)
@@ -24,7 +24,7 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
             target_pos_i_distribution = MultivariateNormal(position_mean, position_var)
             self.target_pos_distribution.append(target_pos_i_distribution)
 
-    def log_prob(self, glob_state):
+    """def log_prob(self, glob_state):
         lp = 0
         for i in range(self.num_agents):
             pos_agent_i = torch.Tensor(glob_state['agents']['position'][i])
@@ -32,15 +32,20 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
         for i in range(self.num_targets):
             pos_target_i = torch.Tensor(glob_state['prey']['position'][i])
             lp += self.mouse_pos_distribution[i].log_prob(pos_target_i)
-        return lp
+        return lp"""
     
     def update_estimation_local_observation(self, loc_obs):
-        loc_obs = loc_obs["agent_0"]
-        for i in range(self.num_agents):
-            self.agent_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2], loc_obs[3]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
-            
+        loc_obs = loc_obs[f"agent_{self.agent_id}"]
+        self.agent_pos_distribution[self.agent_id] = MultivariateNormal(torch.Tensor([loc_obs[2], loc_obs[3]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
         for i in range(self.num_targets):
-            self.target_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2]+loc_obs[3], loc_obs[3]+loc_obs[4]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
+            self.target_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[4+2*i]+loc_obs[2], loc_obs[5+2*i]+loc_obs[3]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
+        cor = 0
+        for i in range(self.num_agents):
+            if i == self.agent_id:
+                cor = 1
+                continue
+            self.agent_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[4+2*self.num_targets+2*(i-cor)], loc_obs[5+2*self.num_targets+2*(i-cor)]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
+    
     @staticmethod
     def update_estimation_communication(self, distributions):
         num_comm = len(distributions)
