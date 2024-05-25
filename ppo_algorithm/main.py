@@ -43,7 +43,7 @@ if __name__ == '__main__':
 		gamma=0.99,
 		n_epochs=n_epochs,
 		batch_size=batch_size)
-	n_games = 5000
+	n_games = 10000
 	agent.load_models()
 	figure_file = 'plots/cartpole.png'
 	best_score = -100
@@ -58,7 +58,8 @@ if __name__ == '__main__':
 		observation = env.reset()
 		observation = np.array(observation[0])
 		score = 0
-		while not done:
+		steps = 0
+		while not done and steps < 30:
 			action, prob, val = agent.choose_action(observation)
 			observation_, reward, done, info = env.step(d[action])
 			env.render()
@@ -73,6 +74,7 @@ if __name__ == '__main__':
 				agent.learn()
 				learn_iters += 1
 			observation = observation_
+			steps += 1
 		score_history.append(score)
 		avg_score = np.mean(score_history[-100:])
 		if avg_score > best_score:

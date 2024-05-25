@@ -7,8 +7,9 @@ import pandas as pd
 from normalization import Normalization
 from buffer import Buffer
 from agent import Agent
-from pettingzoo.mpe import simple_spread_v3
-from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
+# from pettingzoo.mpe import simple_spread_v3
+# from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
+from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 
 def trans_obs(obs):
@@ -24,6 +25,22 @@ def trans_obs(obs):
 		ret.append(np.concatenate(temp))
 	return np.array(ret)
 
+def trans_obs_discrete(obs):
+	ret = []
+	for ob in obs:
+		temp = []
+		agent_grid = ob["agent_grid"].flatten()
+		prey_grid = ob["agent_grid"].flatten()
+		agent_pos = ob["agent_pos"]
+		agent_id = np.array([ob["agent_id"]])
+		temp.append(agent_grid)
+		temp.append(prey_grid)
+		temp.append(agent_pos)
+		temp.append(agent_id)
+		temp = np.concatenate(temp)
+		ret.append(temp)
+	return np.array(ret)
+
 def trans_state(state):
 	ret = []
 	for agent_pos in state['agents']['position']:
@@ -32,6 +49,17 @@ def trans_state(state):
 		ret += prey_pos.tolist()
 		ret.append(state['prey']['caught'][i])
 	return np.array(ret)
+
+def trans_state_discrete(state):
+	ret = []
+	agent_grid = state["grids"]["agents"].flatten()
+	prey_grid = state["grids"]["prey"].flatten()
+	agent_pos = state["agent_pos"].flatten()
+	ret.append(agent_grid)
+	ret.append(prey_grid)
+	ret.append(agent_pos)
+	ret = np.concatenate(ret)
+	return ret
 
 def get_action(action):
 	action_dict = {
@@ -42,60 +70,74 @@ def get_action(action):
 	}
 	return action_dict[action]
 
+def get_action_discrete(action):
+	ACTION_LIST = np.array([
+    [0,0],
+    [0,1],
+    [1,0],
+    [1,1],
+    [0,-1],
+    [-1,0],
+    [-1,-1],
+    [1,-1],
+    [-1,1]
+	])
+	return ACTION_LIST[action]
 
-class SimpleSpreadV3:
-	def __init__(self):
-		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
-			render_mode='human',
-			continuous_actions=False)
-		self.env.reset(seed=42)
-		self.n_agents = self.env.num_agents
-		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
-		self.state_dim = self.obs_dim * self.n_agents
-		self.action_dim = 5
-		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
-	def reset(self):
-		obs_n, info = self.env.reset()
-		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
-		return obs_n, info
+# class SimpleSpreadV3:
+# 	def __init__(self):
+# 		self.env = simple_spread_v3.parallel_env(N=3, max_cycles=25, local_ratio=0.5,
+# 			render_mode='human',
+# 			continuous_actions=False)
+# 		self.env.reset(seed=42)
+# 		self.n_agents = self.env.num_agents
+# 		self.obs_dim = [self.env.observation_spaces[agent].shape[0] for agent in self.env.agents][0]
+# 		self.state_dim = self.obs_dim * self.n_agents
+# 		self.action_dim = 5
+# 		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
-	def step(self, a_n):
-		actions = {}
-		for i, agent in enumerate(self.env.agents):
-			actions[agent] = a_n[i]
-		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
-		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
-		done_n = np.array([val for val in done_n.values()])
-		r_n = list(r_n.values())
-		return obs_next_n, r_n, done_n, trunc, info
+# 	def reset(self):
+# 		obs_n, info = self.env.reset()
+# 		obs_n = np.array([obs_n[agent] for agent in obs_n.keys()])
+# 		return obs_n, info
 
-	def render(self):
-		self.env.render()
+# 	def step(self, a_n):
+# 		actions = {}
+# 		for i, agent in enumerate(self.env.agents):
+# 			actions[agent] = a_n[i]
+# 		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
+# 		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
+# 		done_n = np.array([val for val in done_n.values()])
+# 		r_n = list(r_n.values())
+# 		return obs_next_n, r_n, done_n, trunc, info
 
-	def close(self):
-		self.env.close()
+# 	def render(self):
+# 		self.env.render()
+
+# 	def close(self):
+# 		self.env.close()
 
 
 class CatMouse:
 	def __init__(self):
-		self.env = CatMouseMA(observation_radius=10, n_agents=2, n_prey=4)
-		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
-		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
-		# self.state_dim = 2
-		# self.obs_dim = 2
+		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4)
+		# self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
+		# self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
+		self.state_dim = 54
+		self.obs_dim = 53
+		self.action_dim = 9
 		self.n_agents = self.env.n_agents
-		self.action_dim = 4
 		self.env.reset()
 
 	def reset(self):
 		obs_n, info = self.env.reset()
-		obs_n = np.array(trans_obs(obs_n))
+		obs_n = np.array(trans_obs_discrete(obs_n))
 		return obs_n, info
 
 	def step(self, a_n):
-		obs_next_n, r_n, done_n, trunc, info = self.env.step([get_action(a) for a in a_n])
-		obs_next_n = trans_obs(obs_next_n)
+		obs_next_n, r_n, done_n, trunc, info = self.env.step([get_action_discrete(a) for a in a_n])
+		obs_next_n = trans_obs_discrete(obs_next_n)
 		done_n = [done_n]
 		return obs_next_n, r_n, done_n, trunc, info
 	def get_global_obs(self):
@@ -157,7 +199,7 @@ class Runner_MAPPO:
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)  # Get actions and the corresponding log probabilities of N agents
 
 			# cat_mouse
-			s = trans_state(self.env.get_global_obs())
+			s = trans_state_discrete(self.env.get_global_obs())
 
 			# simple_spread
 			# stay, right, left, top, bottom
@@ -186,7 +228,7 @@ class Runner_MAPPO:
 		if not evaluate:
 			# Store v_n in the last step
 			# cat_mouse
-			s = trans_state(self.env.get_global_obs())
+			s = trans_state_discrete(self.env.get_global_obs())
 
 			#simple_spread
 			# s = np.array(obs_n).flatten()
@@ -229,19 +271,19 @@ class Runner_MAPPO:
 
 if __name__ == '__main__':
 	runner = Runner_MAPPO(env_name='simple_spread_v3', number=3, seed=0)
-	# runner.train()
-	# runner.agent_n.save_model()
+	runner.train()
+	runner.agent_n.save_model()
 
-	# plt.figure(figsize=(10, 5))
-	# plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
-	# plt.xlabel('Episodes')
-	# plt.ylabel('Reward')
-	# plt.title('Reward vs Episodes')
-	# plt.grid(True)
-	# plt.savefig('reward_vs_episodes.png')
-	# data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
-	# df = pd.DataFrame(data)
-	# df.to_csv('reward_vs_episodes.csv', index=False)
+	plt.figure(figsize=(10, 5))
+	plt.plot(runner.evaluate_rewards_timestep, runner.evaluate_rewards)
+	plt.xlabel('Episodes')
+	plt.ylabel('Reward')
+	plt.title('Reward vs Episodes')
+	plt.grid(True)
+	plt.savefig('reward_vs_episodes.png')
+	data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
+	df = pd.DataFrame(data)
+	df.to_csv('reward_vs_episodes.csv', index=False)
 
-	runner.agent_n.load_model()
-	runner.evaluate_policy()
+	# runner.agent_n.load_model()
+	# runner.evaluate_policy()
