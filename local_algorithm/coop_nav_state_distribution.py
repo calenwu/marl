@@ -33,14 +33,15 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
             pos_target_i = torch.Tensor(glob_state['prey']['position'][i])
             lp += self.mouse_pos_distribution[i].log_prob(pos_target_i)
         return lp
-    
+
     def update_estimation_local_observation(self, loc_obs):
         loc_obs = loc_obs["agent_0"]
         for i in range(self.num_agents):
             self.agent_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2], loc_obs[3]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
-            
+
         for i in range(self.num_targets):
             self.target_pos_distribution[i] = MultivariateNormal(torch.Tensor([loc_obs[2] + loc_obs[4], loc_obs[3] + loc_obs[5]]), torch.Tensor([[0.01, 0], [0, 0.01]]))
+
     @staticmethod
     def update_estimation_communication(self, distributions):
         num_comm = len(distributions)
@@ -68,18 +69,17 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
             for j in range(len(num_comm)):
                 distributions[j].target_pos_distribution[i] = MultivariateNormal(mean/cov_sum, torch.Tensor([[min_cov, 0],[0, min_cov]]))
 
-    
     def get_belief_state(self):
         state = []
         for i in range(self.num_agents):
             state.append(self.agent_pos_distribution[i].mean[0])
             state.append(self.agent_pos_distribution[i].mean[1])
-            state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
-            state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
+            # state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
+            # state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
         for i in range(self.num_targets):
             state.append(self.target_pos_distribution[i].mean[0])
             state.append(self.target_pos_distribution[i].mean[1])
-            state.append(self.target_pos_distribution[i].covariance_matrix[0][0])
-            state.append(self.target_pos_distribution[i].covariance_matrix[1][1])
+            # state.append(self.target_pos_distribution[i].covariance_matrix[0][0])
+            # state.append(self.target_pos_distribution[i].covariance_matrix[1][1])
         return state
         

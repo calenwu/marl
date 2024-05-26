@@ -43,7 +43,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             found_mouse_i = torch.Tensor([glob_state['prey']['caught'][i]])
             lp +=  self.mouse_found_distribution[i].log_prob(found_mouse_i)[0] 
         return lp
-    
+
     def update_estimation_local_observation(self, loc_obs):
         loc_agent_obs = loc_obs['agents']['position']
         loc_mice_obs = loc_obs['prey']['position']
@@ -65,6 +65,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
                 self.mouse_found_distribution[i] = Bernoulli(1)
             else:
                 self.mouse_found_distribution[i] = Bernoulli(self.mouse_found_distribution[i].probs + 0.00)
+
     @staticmethod
     def update_estimation_communication(self, distributions):
         num_comm = len(distributions)
@@ -96,7 +97,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             max_prob = 0
             for j in range(len(num_comm)):
                 max_prob = max(max_prob, distributions[j].mouse_found_distribution[i].probs)
-    
+
     def get_belief_state(self):
         state = []
         for i in range(self.num_agents):
