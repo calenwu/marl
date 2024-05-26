@@ -47,6 +47,10 @@ from local_agent import Local_Agent
 #         agent.learn()
 
 
+d = []
+for x in range(5):
+	d.append([x])
+     
 def train_cooperative_nav(num_episodes):
     n_agents = 1
     n_targets = 1

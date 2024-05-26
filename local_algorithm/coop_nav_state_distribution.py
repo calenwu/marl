@@ -102,13 +102,12 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
         for i in range(self.num_agents):
             state.append(self.agent_pos_distribution[i].mean[0])
             state.append(self.agent_pos_distribution[i].mean[1])
-            state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
-            state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
+            # state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
+            # state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
         for i in range(self.num_targets):
             state.append(self.target_pos_distribution[i].mean[0])
             state.append(self.target_pos_distribution[i].mean[1])
             state.append(self.target_pos_distribution[i].covariance_matrix[0][0])
             state.append(self.target_pos_distribution[i].covariance_matrix[1][1])
-        return state
     
     

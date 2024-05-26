@@ -93,11 +93,12 @@ class Critic_MLP(nn.Module):
 
 
 class Agent:
-	def __init__(self, continuous: bool, n_agents: int, state_dim: int, obs_dim: int, action_dim: int,
+	def __init__(self, env_name: str, continuous: bool, n_agents: int, state_dim: int, obs_dim: int, action_dim: int,
 			episode_limit=25, batch_size=64, mini_batch_size=64, max_train_steps=int(3e6),
 			lr=5e-4, gamma=0.99, lambda_=0.95, epsilon=0.2, K_epochs=15, entropy_coef=0.1,):
 		self.plotter_x = []
 		self.plotter_y = []
+		self.env_name = env_name
 		self.continuous = continuous
 
 		self.N = n_agents
@@ -148,23 +149,6 @@ class Agent:
 			dist = Categorical(probs=prob)
 			a_n = dist.sample()
 			a_logprob_n = dist.log_prob(a_n)
-			# obs_n = obs_n.numpy()[0]
-			# if obs_n[1] - obs_n[3] >= 0:
-			# 	# go left
-			# 	x = [2]
-			# else:
-			# 	# go right
-			# 	x = [0]
-			# if obs_n[2] - obs_n[4] >= 0:
-			# 	# go up
-			# 	y = [3]
-			# else:
-			# 	# go down
-			# 	y = [1]
-			# if abs(obs_n[1] - obs_n[3]) > abs(obs_n[2] - obs_n[4]):
-			# 	a_n = torch.tensor(x)
-			# else:
-			# 	a_n = torch.tensor(y)
 			return a_n.numpy(), a_logprob_n.numpy()
 
 	def get_value(self, s):
@@ -243,12 +227,12 @@ class Agent:
 		return actor_inputs, critic_inputs
 
 	def save_model(self):
-		self.actor.save_checkpoint()
-		self.critic.save_checkpoint()
+		self.actor.save_checkpoint(filename=f'./checkpoints/mapppo_actor_{self.env_name}.pth')
+		self.critic.save_checkpoint(filename=f'./checkpoints/mapppo_critic_{self.env_name}.pth')
 
 	def load_model(self):
-		self.actor.load_checkpoint()
-		self.critic.load_checkpoint()
+		self.actor.load_checkpoint(filename=f'./checkpoints/mapppo_actor_{self.env_name}.pth')
+		self.critic.load_checkpoint(filename=f'./checkpoints/mapppo_critic_{self.env_name}.pth')
 
 				# if len(self.plotter_x) > 10000:
 				# 	# print a plot and save it with the self.plotter_x and self.plotter_y

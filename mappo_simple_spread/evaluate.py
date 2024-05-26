@@ -96,8 +96,8 @@ for episode in range(5):
 		message += f'{agent_id}: {reward:>4f}; '
 	print(message)
 	# save gif
-	frame_list[0].save(os.path.join(gif_dir, f'out{gif_num + episode + 1}.gif'),
-					   save_all=True, append_images=frame_list[1:], duration=1, loop=0)
+	# frame_list[0].save(os.path.join(gif_dir, f'out{gif_num + episode + 1}.gif'),
+					  #  save_all=True, append_images=frame_list[1:], duration=1, loop=0)
 
 
 rewards = np.load(args.reward_path)
