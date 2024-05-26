@@ -29,7 +29,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             mouse_found_i_distribution = Bernoulli(0)
             self.mouse_found_distribution.append(mouse_found_i_distribution)
 
-    def log_prob(self, glob_state):
+    """def log_prob(self, glob_state):
         lp = 0
         for i in range(self.num_agents):
             pos_agent_i = torch.Tensor(glob_state['agents']['position'][i])
@@ -42,7 +42,7 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
         for i in range(self.num_mice):
             found_mouse_i = torch.Tensor([glob_state['prey']['caught'][i]])
             lp +=  self.mouse_found_distribution[i].log_prob(found_mouse_i)[0] 
-        return lp
+        return lp"""
     
     def update_estimation_local_observation(self, loc_obs):
         loc_agent_obs = loc_obs['agents']['position']
@@ -65,37 +65,6 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
                 self.mouse_found_distribution[i] = Bernoulli(1)
             else:
                 self.mouse_found_distribution[i] = Bernoulli(self.mouse_found_distribution[i].probs + 0.00)
-    @staticmethod
-    def update_estimation_communication(self, distributions):
-        num_comm = len(distributions)
-        for i in range(self.num_agents):
-            mean = torch.Tensor([0,0])
-            cov_sum = 0
-            min_cov = self.ini_var
-            for j in range(len(num_comm)):
-                cov = distributions[j].agent_pos_distribution.covariance_matrix[0][0]
-                mean += distributions[j].agent_pos_distribution.mean/cov
-                cov_sum += 1/cov
-                min_cov += min(min_cov, cov)
-            for j in range(len(num_comm)):
-                distributions[j].agent_pos_distribution = MultivariateNormal(mean/cov_sum, torch.Tensor([[min_cov, 0],[0, min_cov]]))
-
-        for i in range(self.num_mice):
-            mean = torch.Tensor([0,0])
-            cov_sum = 0
-            min_cov = self.ini_var
-            for j in range(len(num_comm)):
-                cov = distributions[j].mouse_pos_distribution.covariance_matrix[0][0]
-                mean += distributions[j].mouse_pos_distribution.mean/cov
-                cov_sum += 1/cov
-                min_cov += min(min_cov, cov)
-            for j in range(len(num_comm)):
-                distributions[j].mouse_pos_distribution = MultivariateNormal(mean/cov_sum, torch.Tensor([[min_cov, 0],[0, min_cov]]))
-
-        for i in range(self.num_mice):
-            max_prob = 0
-            for j in range(len(num_comm)):
-                max_prob = max(max_prob, distributions[j].mouse_found_distribution[i].probs)
     
     def get_belief_state(self):
         state = []
@@ -112,3 +81,62 @@ class Cat_Mouse_State_Distribution(torch.distributions.distribution.Distribution
             state.append(self.mouse_found_distribution[i].probs)
         return state
         
+
+    @staticmethod
+    def update_estimation_communication(distributions, num_agents, num_mice):
+        ini_var = 10
+        final_distr = Cat_Mouse_State_Distribution(num_agents, num_mice, -1)
+        num_comm = len(distributions)
+        for i in range(num_agents):
+            mean = torch.Tensor([0,0])
+            cov_sum = 0
+            min_cov = ini_var
+            for j in range(num_comm):
+                cov = distributions[j].agent_pos_distribution[i].covariance_matrix[0][0]
+                mean += distributions[j].agent_pos_distribution[i].mean/cov
+                cov_sum += 1/cov
+                min_cov += min(min_cov, cov)
+            final_distr.agent_pos_distribution[i] = MultivariateNormal(mean/cov_sum, torch.Tensor([[min_cov, 0],[0, min_cov]]))
+
+        for i in range(num_mice):
+            mean = torch.Tensor([0,0])
+            cov_sum = 0
+            min_cov = ini_var
+            for j in range(num_comm):
+                cov = distributions[j].mouse_pos_distribution[i].covariance_matrix[0][0]
+                mean += distributions[j].mouse_pos_distribution[i].mean/cov
+                cov_sum += 1/cov
+                min_cov += min(min_cov, cov)
+            final_distr.mouse_pos_distribution[i] = MultivariateNormal(mean/cov_sum, torch.Tensor([[min_cov, 0],[0, min_cov]]))
+
+        for i in range(num_mice):
+            max_prob = 0
+            for j in range(num_comm):
+                max_prob = max(max_prob, distributions[j].mouse_found_distribution[i].probs)
+            final_distr.mouse_found_distribution[i] = Bernoulli(max_prob)
+        return final_distr
+    
+    @staticmethod
+    def set_from_belief_state(belief_state, agent_id, num_agents, num_mice):
+        distr = Cat_Mouse_State_Distribution(num_agents, num_mice, agent_id)
+        for i in range(num_agents):
+            distr.agent_pos_distribution[i].mean[0] = belief_state[4*i]
+            distr.agent_pos_distribution[i].mean[1] = belief_state[4*i+1]
+            distr.agent_pos_distribution[i].covariance_matrix[0][0] = belief_state[4*i+2]
+            distr.agent_pos_distribution[i].covariance_matrix[1][1] = belief_state[4*i+3]    
+        for i in range(num_mice):
+            distr.mouse_pos_distribution[i].mean[0] = belief_state[5*i+4*num_agents]
+            distr.mouse_pos_distribution[i].mean[1] = belief_state[5*i+1+4*num_agents]
+            distr.mouse_pos_distribution[i].covariance_matrix[0][0] = belief_state[5*i+2+4*num_agents]
+            distr.mouse_pos_distribution[i].covariance_matrix[1][1] = belief_state[5*i+3+4*num_agents]
+            distr.mouse_found_distribution[i].probs = belief_state[5*i+4+4*num_agents]
+        return distr
+    
+    @staticmethod
+    def update_belief_state(belief_states, ids, num_agents, num_mice):
+        distrs = []
+        for i in range(len(belief_states)):
+            distr = Cat_Mouse_State_Distribution.set_from_belief_state(belief_states[i], ids[i], num_agents, num_mice)
+            distrs.append(distr)
+        final_distr = Cat_Mouse_State_Distribution.update_estimation_communication(distrs, num_agents, num_mice)
+        return final_distr.get_belief_state()
