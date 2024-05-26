@@ -18,7 +18,7 @@ from torch.distributions import Normal
 
 class LocalPPOMemory:
 
-	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 100):
+	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 50):
 		self.agent_id = agent_id
 		self.n_agents = n_agents
 		self.max_size = max_size
@@ -121,7 +121,7 @@ class LocalPPOMemory:
 		return agent_list
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, f'actor_torch_ppo{agent_id}')
 		self.actor = nn.Sequential(
@@ -148,7 +148,7 @@ class ActorNetwork(nn.Module):
 		T.load(self.state_dict(), self.checkpoint_file)
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
 		super(CriticNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, f'critic_torch_ppo_{agent_id}')
 		self.critic = nn.Sequential(

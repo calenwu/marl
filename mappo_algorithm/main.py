@@ -85,7 +85,7 @@ class CatMouse:
 		return np.array(ret)
 
 	def __init__(self, evaluate=False):
-		self.env = CatMouseMA(observation_radius=1, n_agents=2, n_prey=4, render_mode='human' if evaluate else None)
+		self.env = CatMouseMA(observation_radius=1, n_agents=2, n_prey=2)
 		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
 		self.action_dim = 4
@@ -160,7 +160,7 @@ class CatMouseDiscrete:
 		return ret
 
 	def __init__(self, evaluate=False):
-		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4, render_mode='human' if evaluate else None)
+		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4)
 		# self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		# self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
 		self.state_dim = 54
@@ -230,8 +230,8 @@ class Runner_MAPPO:
 		np.random.seed(self.seed)
 		torch.manual_seed(self.seed)
 
-		self.episode_limit = 50
-		self.max_train_steps = 3000000
+		self.episode_limit = 25
+		self.max_train_steps = 300000
 		self.evaluate_freq = 200
 
 		self.env = env
@@ -264,8 +264,8 @@ class Runner_MAPPO:
 			a_n, a_logprob_n = self.agent_n.choose_action(obs_n, evaluate=evaluate)
 			v_n = self.agent_n.get_value(s)
 			obs_next_n, r_n, done_n, _, _, s_next = self.env.step(a_n)
-			# episode_reward += sum(r_n)
-			episode_reward += r_n[0]
+			episode_reward += sum(r_n)
+			# episode_reward += r_n[0]
 
 			if not evaluate:
 				r_n = self.reward_norm([r_n])
@@ -316,9 +316,9 @@ class Runner_MAPPO:
 
 if __name__ == '__main__':
 	# self.env = SimpleSpreadV3()
-	evaluate = True
-	env = Lumberjacks(evaluate=evaluate)
-	runner = Runner_MAPPO(env, env_name='lumberjacks', number=3, seed=0)
+	evaluate = False
+	env = CatMouse(evaluate=evaluate)
+	runner = Runner_MAPPO(env, env_name='cat_mouse_ma', number=3, seed=0)
 	if evaluate:
 		runner.agent_n.load_model()
 		runner.evaluate_policy()
@@ -332,7 +332,7 @@ if __name__ == '__main__':
 		plt.ylabel('Reward')
 		plt.title('Reward vs Episodes')
 		plt.grid(True)
-		plt.savefig('reward_vs_episodes_lumberjacks.png')
+		plt.savefig('reward_vs_episodes_cat_mouse_ma.png')
 		data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
 		df = pd.DataFrame(data)
-		df.to_csv('reward_vs_episodes_lumberjacks.csv', index=False)
+		df.to_csv('reward_vs_episodes_cat_mouse_ma.csv', index=False)

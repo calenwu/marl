@@ -11,7 +11,7 @@ from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 class SimpleSpreadV3:
 	def __init__(self, evaluate=False):
-		N = 1
+		N = 2
 		self.env = simple_spread_v3.parallel_env(N=N, max_cycles=25, local_ratio=0.5,
 			render_mode='human' if evaluate else None, continuous_actions=False)
 		self.env.reset(seed=42)
@@ -22,7 +22,8 @@ class SimpleSpreadV3:
 		self.evaluate = evaluate
 		ACTION_SPACE = []
 		for x in range(5):
-				ACTION_SPACE.append([x])
+			for y in range(5):
+				ACTION_SPACE.append([x, y])
 		self.ACTION_SPACE = ACTION_SPACE
 		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
@@ -163,7 +164,7 @@ class CatMouseDiscrete:
 		return ret
 
 	def __init__(self, evaluate=False):
-		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4, render_mode='human' if evaluate else None)
+		self.env = CatMouseMAD(observation_radius=1, n_agents=2, n_prey=4)
 		# self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		# self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
 		self.state_dim = 54
@@ -179,9 +180,10 @@ class CatMouseDiscrete:
 		return obs_n, info, self.trans_state_discrete(self.env.get_global_obs())
 
 	def step(self, a_n):
-		obs_next_n, r_n, done_n, trunc, info = self.env.step([self.get_action_discrete(a) for a in a_n])
+		print(self.get_action_discrete(a_n))
+		obs_next_n, r_n, done_n, trunc, info = self.env.step(self.get_action_discrete(a_n))
 		obs_next_n = self.trans_obs_discrete(obs_next_n)
-		done_n = [done_n]
+		r_n = sum(r_n)
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
@@ -241,7 +243,6 @@ def plot_learning_curve(x, scores, figure_file):
 if __name__ == '__main__':
 	# env = gym.make('CartPole-v0')
 	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
-
 	env = SimpleSpreadV3(evaluate=False)
 	learning_step = 20
 	agent = Agent(
@@ -291,16 +292,16 @@ if __name__ == '__main__':
 			  'time_steps', n_steps, 'learning_steps', learn_iters)
 
 	plt.figure(figsize=(10, 5))
-	episode_history, score_history = episode_history[::1000], score_history[::1000]
+	episode_history, score_history = episode_history[::200], score_history[::200]
 	plt.plot(episode_history, score_history)
 	plt.xlabel('Episodes')
 	plt.ylabel('Reward')
 	plt.title('Reward vs Episodes')
 	plt.grid(True)
-	plt.savefig('reward_vs_episodes_simple_spread.png')
+	plt.savefig('reward_vs_episodes_ppo_simple_spread.png')
 	data = {'Episodes': episode_history, 'Reward': score_history}
 	df = pd.DataFrame(data)
-	df.to_csv('reward_vs_episodes_simple_spread.csv', index=False)
+	df.to_csv('reward_vs_episodes_ppo_simple_spread.csv', index=False)
 
 	# plot_learning_curve(x, score_history, figure_file)
 

@@ -82,7 +82,7 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
             distr.agent_pos_distribution[i].covariance_matrix[0][0] = belief_state[4*i+2]
             distr.agent_pos_distribution[i].covariance_matrix[1][1] = belief_state[4*i+3]    
         for i in range(num_targets):
-            distr.target_pos_distribution[i].mean[0] = belief_state[4*i+4*num_agents]
+            distr.target_pos_distribution[i].mean[0] = belief_state[2*i+4*num_agents]
             distr.target_pos_distribution[i].mean[1] = belief_state[4*i+1+4*num_agents]
             distr.target_pos_distribution[i].covariance_matrix[0][0] = belief_state[4*i+2+4*num_agents]
             distr.target_pos_distribution[i].covariance_matrix[1][1] = belief_state[4*i+3+4*num_agents]
@@ -102,12 +102,13 @@ class Coop_Nav_State_Distribution(torch.distributions.distribution.Distribution)
         for i in range(self.num_agents):
             state.append(self.agent_pos_distribution[i].mean[0])
             state.append(self.agent_pos_distribution[i].mean[1])
-            # state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
-            # state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
+            state.append(self.agent_pos_distribution[i].covariance_matrix[0][0])
+            state.append(self.agent_pos_distribution[i].covariance_matrix[1][1])
         for i in range(self.num_targets):
             state.append(self.target_pos_distribution[i].mean[0])
             state.append(self.target_pos_distribution[i].mean[1])
             state.append(self.target_pos_distribution[i].covariance_matrix[0][0])
             state.append(self.target_pos_distribution[i].covariance_matrix[1][1])
+        return state
     
     
