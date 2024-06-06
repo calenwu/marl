@@ -231,7 +231,7 @@ class Runner_MAPPO:
 		torch.manual_seed(self.seed)
 
 		self.episode_limit = 25
-		self.max_train_steps = 300000
+		self.max_train_steps = 1000000
 		self.evaluate_freq = 200
 
 		self.env = env
@@ -307,7 +307,7 @@ class Runner_MAPPO:
 			episode_reward, _ = self.run_episode(evaluate=True)
 			evaluate_reward += episode_reward
 
-		evaluate_reward /= 1
+		evaluate_reward /= 5
 		self.evaluate_rewards.append(evaluate_reward)
 		self.evaluate_rewards_timestep.append(self.total_steps)
 
@@ -317,8 +317,10 @@ class Runner_MAPPO:
 if __name__ == '__main__':
 	# self.env = SimpleSpreadV3()
 	evaluate = False
-	env = CatMouse(evaluate=evaluate)
-	runner = Runner_MAPPO(env, env_name='cat_mouse_ma', number=3, seed=0)
+	# env = CatMouse(evaluate=evaluate)
+	env = SimpleSpreadV3(evaluate=evaluate)
+	# env = Lumberjacks(evaluate=evaluate)
+	runner = Runner_MAPPO(env, env_name='simple_spread', number=3, seed=0)
 	if evaluate:
 		runner.agent_n.load_model()
 		runner.evaluate_policy()
@@ -332,7 +334,7 @@ if __name__ == '__main__':
 		plt.ylabel('Reward')
 		plt.title('Reward vs Episodes')
 		plt.grid(True)
-		plt.savefig('reward_vs_episodes_cat_mouse_ma.png')
+		plt.savefig('reward_vs_episodes_simple_spread.png')
 		data = {'Episodes': runner.evaluate_rewards_timestep, 'Reward': runner.evaluate_rewards}
 		df = pd.DataFrame(data)
-		df.to_csv('reward_vs_episodes_cat_mouse_ma.csv', index=False)
+		df.to_csv('reward_vs_episodes_simple_spread.csv', index=False)

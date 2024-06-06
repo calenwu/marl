@@ -11,7 +11,7 @@ from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 class SimpleSpreadV3:
 	def __init__(self, evaluate=False):
-		N = 2
+		N = 3
 		self.env = simple_spread_v3.parallel_env(N=N, max_cycles=25, local_ratio=0.5,
 			render_mode='human' if evaluate else None, continuous_actions=False)
 		self.env.reset(seed=42)
@@ -62,7 +62,11 @@ class CatMouse:
 			2: 0.5,
 			3: 0.75
 		}
-		return action_dict[action]
+		ret = []
+		for x in range(4):
+			for y in range(4):
+				ret.append([action_dict[x], action_dict[y]])
+		return ret[action]
 
 	@staticmethod
 	def trans_obs(obs):
@@ -89,10 +93,10 @@ class CatMouse:
 		return np.array(ret)
 
 	def __init__(self, evaluate=False):
-		self.env = CatMouseMA(observation_radius=1, n_agents=2, n_prey=4, render_mode='human' if evaluate else None)
+		self.env = CatMouseMA(observation_radius=1, n_agents=2, n_prey=2)
 		self.state_dim = self.env.n_agents * 2 + self.env.n_prey * 3
 		self.obs_dim = self.env.n_agents * 3 + self.env.n_prey * 3
-		self.action_dim = 4
+		self.action_dim = 16
 		self.n_agents = self.env.n_agents
 		self.env.reset()
 		self.evaluate = evaluate
@@ -103,9 +107,9 @@ class CatMouse:
 		return obs_n, info, self.trans_state(self.env.get_global_obs())
 
 	def step(self, a_n):
-		obs_next_n, r_n, done_n, trunc, info = self.env.step([self.get_action(a) for a in a_n])
+		obs_next_n, r_n, done_n, trunc, info = self.env.step(self.get_action(a_n))
 		obs_next_n = self.trans_obs(obs_next_n)
-		done_n = [done_n]
+		r_n = sum(r_n)
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
@@ -198,17 +202,19 @@ class CatMouseDiscrete:
 
 class Lumberjacks:
 	def __init__(self, evaluate=False):
-		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=2) #n_trees=8,
+		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(8, 8), n_agents=4) #n_trees=8,
 		self.state_dim = np.sum([self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)])
 		self.obs_dim = self.env.observation_space[1].shape[0]
-		self.action_dim = 5
+		self.action_dim = 5 ** self.env.n_agents
 		self.n_agents = self.env.n_agents
 		self.env.reset()
 		self.evaluate = evaluate
 		ACTION_SPACE = []
 		for x in range(5):
 			for y in range(5):
-				ACTION_SPACE.append([x, y])
+				for z in range(5):
+					for a in range(5):
+						ACTION_SPACE.append([x, y, z, a])
 		self.ACTION_SPACE = ACTION_SPACE
 
 	def reset(self):
@@ -219,6 +225,8 @@ class Lumberjacks:
 	def step(self, a_n):
 		obs_next_n, r_n, done_n, info = self.env.step(self.ACTION_SPACE[a_n])
 		obs_next_n = np.array(obs_next_n)
+		done_n = all(done_n)
+		r_n = sum(r_n)
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
@@ -243,17 +251,19 @@ def plot_learning_curve(x, scores, figure_file):
 if __name__ == '__main__':
 	# env = gym.make('CartPole-v0')
 	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
+	# env = CatMouse(evaluate=False)
+	# env = Lumberjacks(evaluate=False)
 	env = SimpleSpreadV3(evaluate=False)
 	learning_step = 20
 	agent = Agent(
-		env_name='simple_spread',
+		env_name='lumberjacks',
 		n_actions=env.action_dim,
 		input_dims=env.state_dim,
 		alpha= 0.0003,
 		gamma=0.99,
 		n_epochs=4,
 		batch_size=16)
-	n_games = 10000
+	n_games = 20000
 	# agent.load_models()
 	# figure_file = 'plots/cartpole.png'
 	best_score = -100
@@ -270,7 +280,7 @@ if __name__ == '__main__':
 		_, _, state = env.reset()
 		score = 0
 		steps = 0
-		while not done and steps < 25:
+		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
 			# observation_, reward, done, info = env.step(d[action])
 			_, reward, done, _, info, state_ = env.step(action)
@@ -298,10 +308,10 @@ if __name__ == '__main__':
 	plt.ylabel('Reward')
 	plt.title('Reward vs Episodes')
 	plt.grid(True)
-	plt.savefig('reward_vs_episodes_ppo_simple_spread.png')
+	plt.savefig('reward_vs_episodes_ppo_lumberjacks.png')
 	data = {'Episodes': episode_history, 'Reward': score_history}
 	df = pd.DataFrame(data)
-	df.to_csv('reward_vs_episodes_ppo_simple_spread.csv', index=False)
+	df.to_csv('reward_vs_episodes_ppo_lumberjacks.csv', index=False)
 
 	# plot_learning_curve(x, score_history, figure_file)
 
