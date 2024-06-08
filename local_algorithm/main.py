@@ -15,6 +15,7 @@ from cat_mouse_state_distribution import Cat_Mouse_State_Distribution
 from coop_nav_state_distribution import Coop_Nav_State_Distribution
 from lumberjack_state_distribution import Lumberjacks_State_Distribution
 from local_agent import Local_Agent
+import pandas as pd
 # def train_cat_mouse(num_episodes = 5000):
 #     n_agents = 1
 #     n_prey = 2
@@ -130,6 +131,8 @@ def distance_agents(state):
     return state[4]**2+state[5]**2
 
 def train_coop_navigation_local(num_episodes, eval = False):
+    episode_history = []
+    score_history = []
     n_agents = 3
     n_targets = n_agents
     render_mode = None
@@ -177,10 +180,27 @@ def train_coop_navigation_local(num_episodes, eval = False):
             for agent in agents:
                 agent.learn()
         eps_rewards.append(ep_rew)
+        if ep % 500 == 0:
+            score_history.append(ep_rew)
+            episode_history.append(ep)
     if not eval:
         agent.save_models()
 
+    plt.figure(figsize=(10, 5))
+    # episode_history, score_history = episode_history[::1000], score_history[::1000]
+    plt.plot(episode_history, score_history)
+    plt.xlabel('Episodes')
+    plt.ylabel('Reward')
+    plt.title('Reward vs Episodes')
+    plt.grid(True)
+    plt.savefig('reward_vs_episodes_simple_spread.png')
+    data = {'Episodes': episode_history, 'Reward': score_history}
+    df = pd.DataFrame(data)
+    df.to_csv('reward_vs_episodes_simple_spread.csv', index=False)
+
 def train_cat_mouse_local(num_episodes, eval = False):
+    episode_history = []
+    score_history = []
     n_agents = 2
     n_mice = n_agents
     render_mode = None
@@ -203,7 +223,7 @@ def train_cat_mouse_local(num_episodes, eval = False):
         obs, com = env._get_obs()
         ep_rew = 0
         discount = 1
-        for _ in range(50):
+        for _ in range(25):
             actions_all = []
             probs_all = []
             vals_all = []
@@ -229,10 +249,27 @@ def train_cat_mouse_local(num_episodes, eval = False):
             for agent in agents:
                 agent.learn()
         eps_rewards.append(ep_rew)
+        if ep % 500 == 0:
+            score_history.append(ep_rew)
+            episode_history.append(ep)
     if not eval:
         agent.save_models()
 
+    plt.figure(figsize=(10, 5))
+    # episode_history, score_history = episode_history[::1000], score_history[::1000]
+    plt.plot(episode_history, score_history)
+    plt.xlabel('Episodes')
+    plt.ylabel('Reward')
+    plt.title('Reward vs Episodes')
+    plt.grid(True)
+    plt.savefig('reward_vs_episodes_simple_spread.png')
+    data = {'Episodes': episode_history, 'Reward': score_history}
+    df = pd.DataFrame(data)
+    df.to_csv('reward_vs_episodes_simple_spread.csv', index=False)
+
+
 def train_lumberjacks_local(num_episodes, eval = False):
+
     n_agents = 1
     n_trees = 1
     render_mode = None
@@ -251,9 +288,7 @@ def train_lumberjacks_local(num_episodes, eval = False):
         if ep % 25 == 0 and ep > 0:
             print(f"Episode: {ep}")
             print(np.mean(np.array(eps_rewards[ep-25:])))
-        state = env.reset()
-        print(state)
-        obs, com = env._get_obs()
+        obs = env.reset()
         ep_rew = 0
         discount = 1
         for _ in range(50):

@@ -54,9 +54,6 @@ class CatMouseMA(gym.Env):
             })
         }) for _ in range(self.n_agents)])
 
-        # List to store prey each agent observed getting caught
-        self.agent_prey_list = [[] for _ in range(self.n_agents)]
-
         self.reset()
 
     def get_global_obs(self) -> dict:
@@ -118,12 +115,14 @@ class CatMouseMA(gym.Env):
         np.random.seed(seed)
         self.agents = {"position": np.random.rand(self.n_agents,2)}
         self.prey = {"position": np.random.rand(self.n_prey,2), "caught": np.zeros(self.n_prey)}
-        # need to calculate matrices for get_obs
+        # need  to calculate matrices for get_obs
         agent_agent_dists = self._calc_dists(self.agents["position"], self.agents["position"])
         self.agent_prey_dists = self._calc_dists(self.agents["position"], self.prey["position"])
         self.agent_agent_obs_matrix = self._calc_in_range_matrix(agent_agent_dists, self.observation_radius)
         self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agent_prey_dists, self.observation_radius)
         self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
+        # List to store prey each agent observed getting caught
+        self.agent_prey_list = [[] for _ in range(self.n_agents)]
         return self._get_obs()
 
     def step(self, action: list) -> tuple:
@@ -146,11 +145,11 @@ class CatMouseMA(gym.Env):
         self.agent_mouse_obs_matrix = self._calc_in_range_matrix(self.agent_prey_dists, self.observation_radius)
         self.agent_agent_comm_matrix = self._calc_in_range_matrix(agent_agent_dists, self.communication_radius)
 
+        self._check_caught()
 
         next_state, info = self._get_obs()
 
         reward = self._calc_reward()
-        reward += 100 * self._check_caught()
         
         terminated = np.all(self.prey["caught"])
 
@@ -208,23 +207,21 @@ class CatMouseMA(gym.Env):
         Moves prey's positions according to their specified behavior
         """
         # assume uniform random movement of prey
-        pass
-        # for i in range(self.n_prey):
-        #     cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
-        #     if self.prey["caught"][i]:
-        #         continue
-        #     direction = 2 * np.pi * np.random.uniform()
-        #     move_x = self.step_size * math.cos(direction)
-        #     move_y = self.step_size * math.sin(direction)
+        for i in range(self.n_prey):
+            cur_x, cur_y = self.prey["position"][i][0], self.prey["position"][i][1]
+            if self.prey["caught"][i]:
+                continue
+            direction = 2 * np.pi * np.random.uniform()
+            move_x = self.step_size * math.cos(direction)
+            move_y = self.step_size * math.sin(direction)
             
-        #     self.prey["position"][i][0] = min(max(0,cur_x + move_x),1)
-        #     self.prey["position"][i][1] = max(min(1,cur_y + move_y),0)
+            self.prey["position"][i][0] = min(max(0,cur_x + move_x),1)
+            self.prey["position"][i][1] = max(min(1,cur_y + move_y),0)
 
     def _check_caught(self):
         """
         Check if in current environment state an agent can catch a prey and update accordingly.
         """
-        mice_caught = [0 for _ in range(self.n_agents)]
         for i in range(self.n_prey):
             if not self.prey["caught"][i]:
                 for j in range(self.n_agents):
@@ -234,9 +231,7 @@ class CatMouseMA(gym.Env):
                             if self.agent_mouse_obs_matrix[k][i]:
                                 self.agent_prey_list[k].append(i)
                         self.prey["caught"][i] = 1
-                        mice_caught[j] += 1
                         break
-        return np.array(mice_caught)
     
     def _calc_reward(self):
         """
@@ -248,7 +243,7 @@ class CatMouseMA(gym.Env):
             min_dist = self.observation_radius
             for j in range(self.n_prey):
                 if not self.prey["caught"][j] and self.agent_mouse_obs_matrix[i][j]:
-                    min_dist = (min(min_dist, self.agent_prey_dists[i][j]) * 2) ** 2
+                    min_dist = min(min_dist, self.agent_prey_dists[i][j])
             reward[i] -= min_dist
         return reward
 

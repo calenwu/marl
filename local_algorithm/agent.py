@@ -40,8 +40,9 @@ class PpoMemory:
 		self.rewards = []
 		self.dones = []
 
+
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
 		self.actor = nn.Sequential(
@@ -65,10 +66,11 @@ class ActorNetwork(nn.Module):
 		T.save(self.state_dict(), self.checkpoint_file)
 
 	def load_checkpoint(self):
-		4
+		self.load_state_dict(T.load(self.checkpoint_file))
+
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp/ppo'):
+	def __init__(self, input_dims, alpha, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
 		super(CriticNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
 		self.critic = nn.Sequential(
@@ -81,16 +83,17 @@ class CriticNetwork(nn.Module):
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 		self.device = device
 		self.to(self.device)
-	
+
 	def forward(self, state):
 		value = self.critic(state)
 		return value
-	
+
 	def save_checkpoint(self):
 		T.save(self.state_dict(), self.checkpoint_file)
 
 	def load_checkpoint(self):
 		self.load_state_dict(T.load(self.checkpoint_file))
+
 
 class Agent:
 	# N = horizon, steps we take before we perform an update
@@ -132,7 +135,6 @@ class Agent:
 		dist = self.actor(state)
 		value = self.critic(state)
 		action = dist.sample()
-		
 
 		probs = T.squeeze(dist.log_prob(action)).item()
 		action = T.squeeze(action).item()

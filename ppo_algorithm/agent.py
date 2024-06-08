@@ -41,14 +41,14 @@ class PpoMemory:
 		self.dones = []
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, input_dims, alpha, fc1_dims=64, fc2_dims=64, chkpt_dir='tmp/ppo'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
 		self.actor = nn.Sequential(
 			nn.Linear(input_dims, fc1_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc2_dims, n_actions),
 			nn.Softmax(dim=-1)
 		)
@@ -61,41 +61,52 @@ class ActorNetwork(nn.Module):
 		dist = Categorical(dist)
 		return dist
 
-	def save_checkpoint(self):
-		T.save(self.state_dict(), self.checkpoint_file)
+	def save_checkpoint(self, path: str=None):
+		if not path:
+			path = self.checkpoint_file
+		os.makedirs(os.path.dirname(path), exist_ok=True)
+		T.save(self.state_dict(), path)
 
-	def load_checkpoint(self):
-		self.load_state_dict(T.load(self.checkpoint_file))
+	def load_checkpoint(self, path: str=None):
+		if not path:
+			path = self.checkpoint_file
+		self.load_state_dict(T.load(path))
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+	def __init__(self, input_dims, alpha, fc1_dims=64, fc2_dims=64, chkpt_dir='tmp/ppo'):
 		super(CriticNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
 		self.critic = nn.Sequential(
 			nn.Linear(input_dims, fc1_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
-			nn.ReLU(),
+			nn.Tanh(),
 			nn.Linear(fc2_dims, 1)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 		self.device = device
 		self.to(self.device)
-	
+
 	def forward(self, state):
 		value = self.critic(state)
 		return value
-	
-	def save_checkpoint(self):
-		T.save(self.state_dict(), self.checkpoint_file)
 
-	def load_checkpoint(self):
-		self.load_state_dict(T.load(self.checkpoint_file))
+	def save_checkpoint(self, path: str=None):
+		if not path:
+			path = self.checkpoint_file
+		os.makedirs(os.path.dirname(path), exist_ok=True)
+		T.save(self.state_dict(), path)
+
+	def load_checkpoint(self, path: str=None):
+		if not path:
+			path = self.checkpoint_file
+		self.load_state_dict(T.load(path))
 
 class Agent:
 	# N = horizon, steps we take before we perform an update
-	def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+	def __init__(self, env_name: str, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
 			policy_clip=0.2, batch_size=64, n_epochs=10):
+		self.env_name = env_name
 		self.plotter_x = []
 		self.plotter_y = []
 		self.gamma = gamma
@@ -110,15 +121,13 @@ class Agent:
 	def remember(self, state, action, probs, vals, reward, done):
 		self.memory.store_memory(state, action, probs, vals, reward, done)
 
-	def save_models(self):
-		print('... saving models ...')
-		self.actor.save_checkpoint()
-		self.critic.save_checkpoint()
+	def save_models(self, path: str=None):
+		self.actor.save_checkpoint(f'./checkpoints/ppo_actor_{self.env_name}.pth')
+		self.critic.save_checkpoint(f'./checkpoints/ppo_critic_{self.env_name}.pth')
 
-	def load_models(self):
-		print('... loading models ...')
-		self.actor.load_checkpoint()
-		self.critic.load_checkpoint()
+	def load_models(self, path: str=None):
+		self.actor.load_checkpoint(f'./checkpoints/ppo_actor_{self.env_name}.pth')
+		self.critic.load_checkpoint(f'./checkpoints/ppo_critic_{self.env_name}.pth')
 
 	def choose_action(self, observation: np.array):
 		state = T.tensor([observation], dtype=T.float32).to(self.actor.device)
