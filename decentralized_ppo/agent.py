@@ -40,16 +40,22 @@ class PpoMemory:
 		self.rewards = []
 		self.dones = []
 
+	def get_size(self):
+		return len(self.states)
+
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_actions, n_agents, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
 		super(ActorNetwork, self).__init__()
+		self.n_agents = n_agents
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
+
 		self.actor = nn.Sequential(
 			nn.Linear(*input_dims, fc1_dims),
 			nn.ReLU(),
 			nn.Linear(fc1_dims, fc2_dims),
 			nn.ReLU(),
-			nn.Linear(fc2_dims, n_actions),
+			nn.Linear(fc2_dims, n_agents*n_actions),
+			nn.Unflatten(1, (n_agents, n_actions)),
 			nn.Softmax(dim=-1)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -57,9 +63,24 @@ class ActorNetwork(nn.Module):
 		self.to(self.device)
 
 	def forward(self, state):
-		dist = self.actor(state)
-		dist = Categorical(dist)
-		return dist
+		probs = self.actor(state)
+		distrs = []
+		for i in range(state.shape[0]):
+			distrs.append([])
+			for j in range(self.n_agents):
+				distrs[i].append(Categorical(probs[i][j]))
+		return distrs
+		
+		"""x = self.fc1(state)
+		x = self.activation(x)
+		x = self.fc2(x)
+		x = self.activation(x)
+		distrs = []
+		for i in range(self.n_agents):
+			ag = self.agents[i](x)
+			ag = self.softmax(ag)
+			distrs.append(Categorical(ag))
+		return distrs"""
 
 	def save_checkpoint(self):
 		T.save(self.state_dict(), self.checkpoint_file)
@@ -92,23 +113,28 @@ class CriticNetwork(nn.Module):
 	def load_checkpoint(self):
 		self.load_state_dict(T.load(self.checkpoint_file))
 
-class Agent:
+class Centralized_PPO_Agent:
 	# N = horizon, steps we take before we perform an update
-	def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
-			policy_clip=0.2, batch_size=64, n_epochs=10):
+	def __init__(self, n_actions, n_agents, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+			policy_clip=0.2, batch_size=10, n_epochs=3, train = True):
 		self.plotter_x = []
 		self.plotter_y = []
 		self.gamma = gamma
 		self.policy_clip = policy_clip
 		self.n_epochs = n_epochs
 		self.gae_lambda = gae_lambda
+		self.n_agents = n_agents
+		self.train = train
 
-		self.actor = ActorNetwork(n_actions, input_dims, alpha)
+		self.actor = ActorNetwork(n_actions, n_agents, input_dims, alpha)
 		self.critic = CriticNetwork(input_dims, alpha)
 		self.memory = PpoMemory(batch_size)
 
 	def remember(self, state, action, probs, vals, reward, done):
-		self.memory.store_memory(state, action, probs, vals, reward, done)
+		if self.train:
+			self.memory.store_memory(state, action, probs, vals, reward, done)
+			if self.memory.get_size() >= 50:
+				self.learn()
 
 	def save_models(self):
 		print('... saving models ...')
@@ -121,16 +147,21 @@ class Agent:
 		self.critic.load_checkpoint()
 
 	def choose_action(self, observation: np.array):
+		#print(observation)
 		state = T.tensor([observation], dtype=T.float32).to(self.actor.device)
-		dist = self.actor(state)
+		distrs = self.actor(state)[0]
 		value = self.critic(state)
-		action = dist.sample()
-		
+		actions = []
+		probs = []
+		for i in range(self.n_agents):
+			action = distrs[i].sample()
+			actions.append(T.squeeze(action).item())
+			probs.append(T.squeeze(distrs[i].log_prob(action)).item())
 
-		probs = T.squeeze(dist.log_prob(action)).item()
-		action = T.squeeze(action).item()
-		value = T.squeeze(value).item()
-		return action, probs, value, T.softmax(dist.logits, dim=-1)
+		#probs = T.squeeze(dist.log_prob(action)).item()
+		#action = T.squeeze(action).item()
+		#value = T.squeeze(value).item()
+		return actions, probs, T.squeeze(value).item(), None
 
 	def learn(self):
 		for _ in range(self.n_epochs):
@@ -151,12 +182,17 @@ class Agent:
 				states = T.tensor(state_arr[batch], dtype=T.float32).to(self.actor.device)
 				old_probs = T.tensor(old_prob_arr[batch], dtype=T.float32).to(self.actor.device)
 				actions = T.tensor(action_arr[batch], dtype=T.float32).to(self.actor.device)
-
-				dist = self.actor(states)
 				critic_values = self.critic(states)
 				critic_values = T.squeeze(critic_values)
+				distrs = self.actor(states)
+				new_probs = []
+				for j in range(actions.shape[0]):
+					new_prob = 0
+					for i in range(self.n_agents):
+						new_prob += distrs[j][i].log_prob(actions[j][i])
+					new_probs.append(new_prob)
+				new_probs = T.Tensor(new_probs)
 
-				new_probs = dist.log_prob(actions)
 				prob_ratio = new_probs.exp() / old_probs.exp()
 
 				weighted_probs = advantages[batch] * prob_ratio

@@ -46,67 +46,91 @@ from local_agent import Local_Agent
 #         eps_rewards.append(ep_rew)
 #         agent.learn()
 
+def global_state_navigation(state, n_agents):
+    loc_obs = state['agent_0']
+    global_state = []
+    global_state.append(loc_obs[2])
+    global_state.append(loc_obs[3])
 
-def train_cooperative_nav(num_episodes):
-    n_agents = 1
-    n_targets = 1
-    env = simple_spread_v3.parallel_env(N=n_agents, max_cycles=50,local_ratio=0.5, continuous_actions=False, render_mode=None) #Tr/Te
-    state_dim = 4*(n_agents+n_targets)
-    agent = Agent(5**n_agents, (state_dim,), alpha=0.0003, n_epochs=4, batch_size=16)
-    state_distr_1 = Coop_Nav_State_Distribution(n_agents, n_targets, 0)
-    local_agent = Local_Agent(n_agents, 5, 0, state_distr_1)
-    #agent.load_models() # Testing
-    
-    #state_distr_2 = Coop_Nav_State_Distribution(n_agents, n_targets, 0)
+    for i in range(n_agents-1):
+        global_state.append(loc_obs[4+2*n_agents]+loc_obs[2])
+        global_state.append(loc_obs[5+2*n_agents]+loc_obs[3])
+
+    for i in range(n_agents):
+        global_state.append(loc_obs[4+2*i]+loc_obs[2])
+        global_state.append(loc_obs[5+2*i]+loc_obs[3])
+    return global_state
+
+def get_actions(action, n_actions, n_agents):
+    actions = []
+    for _ in range(n_agents):
+        ac = action % n_actions
+        actions.append(ac)
+        action -= ac
+        action = int(action/n_actions)
+    return actions
+
+def train_cooperative_nav(num_episodes, train = True):
+    n_agents = 3
+    n_actions = 5
+    render_mode = 'human'
+    if train:
+        render_mode = None
+    env = simple_spread_v3.parallel_env(N=n_agents, max_cycles=50,local_ratio=0.5, continuous_actions=False, render_mode=render_mode) #Tr/Te
+    state_dim = 4*n_agents
+    entropy_scaling = lambda learning_step: 5* (num_episodes-learning_step)/num_episodes 
+    agent = Agent(n_actions**n_agents, (state_dim,), alpha=0.0003, n_epochs=10, batch_size = 64, n_steps = 100, entropy_scaling=entropy_scaling)
+    if not train:
+        agent.load_models()
     eps_rewards = []
+    best_avg_rew = -100000
     for ep in range(num_episodes):
+        if ep % 50 == 0 and ep > 0 and train:
+            print(f"Episode: {ep}")
+            ep_avg_rew = np.mean(np.array(eps_rewards[ep-50:]))
+            print(ep_avg_rew)  
+            if ep_avg_rew >= best_avg_rew:
+                best_avg_rew = ep_avg_rew
+                agent.save_models()
         state, _ = env.reset()
-        state_distr_1.update_estimation_local_observation(state)
-        state_distr_2.update_estimation_local_observation(state)
-        belief_state_1 = state_distr_1.get_belief_state()
-        belief_state_2 = state_distr_2.get_belief_state()
+        state = global_state_navigation(state, n_agents)
         ep_rew = 0
         discount = 1
         for i in range(50):
-            print(state)
-            action, probs, value, _ = agent.choose_action([belief_state_1])
-            action_1 = action % 5
-            action_2 = int(action/5)
-            state_n, reward, done, _, _ = env.step({"agent_0":action_1, "agent_1": action_2})
-            reward_1 = reward['agent_0']
-            reward_2 = reward['agent_1']
-            done_1 = done['agent_0']
-            done_2 = done['agent_1']
-            env.render() # Testing
-            time.sleep(0.5)# Testing
-            ep_rew += discount*(reward_1+reward_2)
+            action, probs, value, _ = agent.choose_action([state])
+            actions = get_actions(action, n_actions, n_agents)
+            all_actions = {}
+            for i in range(n_agents):
+                all_actions[f"agent_{i}"] = actions[i]
+            state_n, reward, done, _, _ = env.step(all_actions)
+            if not train:
+                env.render()
+                print(probs)
+                time.sleep(0.25)
+            state_n = global_state_navigation(state_n, n_agents)
+            tot_reward = 0
+            tot_done = True
+            for i in range(n_agents):
+                tot_reward += reward[f"agent_{i}"]
+                tot_done =  tot_done and done[f"agent_{i}"]
+            ep_rew += discount*tot_reward
             discount *= 0.99
             eps_rewards.append(ep_rew)
-            if done_1 and done_2:
+            agent.remember(state, action, probs, value, tot_reward, tot_done)
+            if tot_done:
                 break
-            state_distr_1.update_estimation_local_observation(state_n)
-            state_distr_2.update_estimation_local_observation(state_n)
-            belief_state_n_1 = state_distr_1.get_belief_state()
-            belief_state_n_2 = state_distr_2.get_belief_state()
-            agent.remember(belief_state_1, action, probs, value, np.array([reward_1+reward_2]), np.array([done_1 and done_2]))            
-            belief_state_1 = belief_state_n_1
-            belief_state_2 = belief_state_n_2
-
+            state = state_n
             # print(state_n['agent_0'][2].item() + state_n['agent_0'][4].item(), state_n['agent_0'][3].item() + state_n['agent_0'][5].item())
             # print(belief_state_n)
-            
-            
-        print(ep_rew)
-        eps_rewards.append(ep_rew)
-        #if ep % 5 == 0:
-            #agent.learn()   #Training
-    #agent.save_models() # Training
+        if train:
+            agent.learn()   #Training
+    # # Training
 
 def distance_agents(state):
     return state[4]**2+state[5]**2
 
 def train_coop_navigation_local(num_episodes, eval = False):
-    n_agents = 2
+    n_agents = 3
     n_targets = n_agents
     render_mode = None
     if eval:
@@ -262,6 +286,7 @@ def train_lumberjacks_local(num_episodes, eval = False):
         agent.save_models()
 
 def __main__():
-    train_lumberjacks_local(1000, False)
+    # -5.922 after 5000 eps equall step size
+    train_cooperative_nav(5000, True)
 
 __main__()

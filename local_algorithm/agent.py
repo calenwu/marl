@@ -95,20 +95,27 @@ class CriticNetwork(nn.Module):
 class Agent:
 	# N = horizon, steps we take before we perform an update
 	def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
-			policy_clip=0.2, batch_size=64, n_epochs=10):
+			policy_clip=0.2, batch_size=64, n_epochs=10, n_steps = 100, train = True, entropy_scaling = lambda x: 0):
 		self.plotter_x = []
 		self.plotter_y = []
 		self.gamma = gamma
 		self.policy_clip = policy_clip
 		self.n_epochs = n_epochs
+		self.n_steps = n_steps
+		self.learning_step = 0
 		self.gae_lambda = gae_lambda
+		self.train = train
+		self.entropy_scaling = entropy_scaling
 
 		self.actor = ActorNetwork(n_actions, input_dims, alpha)
-		self.critic = CriticNetwork(input_dims, alpha)
+		self.critic = CriticNetwork(input_dims, alpha*10)
 		self.memory = PpoMemory(batch_size)
 
 	def remember(self, state, action, probs, vals, reward, done):
-		self.memory.store_memory(state, action, probs, vals, reward, done)
+		if self.train:
+			self.memory.store_memory(state, action, probs, vals, reward, done)
+			#if len(self.memory.states) >= self.n_steps:
+			#	self.learn()
 
 	def save_models(self):
 		print('... saving models ...')
@@ -133,6 +140,7 @@ class Agent:
 		return action, probs, value, T.softmax(dist.logits, dim=-1)
 
 	def learn(self):
+		self.learning_step += 1
 		for _ in range(self.n_epochs):
 			state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_batches()
 			values = vals_arr
@@ -153,6 +161,7 @@ class Agent:
 				actions = T.tensor(action_arr[batch], dtype=T.float32).to(self.actor.device)
 
 				dist = self.actor(states)
+				entropy = dist.entropy()
 				critic_values = self.critic(states)
 				critic_values = T.squeeze(critic_values)
 
@@ -168,7 +177,8 @@ class Agent:
 
 				self.plotter_x.append(len(self.plotter_x) + 1)
 				self.plotter_y.append(critic_loss.item())
-				total_loss = actor_loss + 0.5 * critic_loss
+
+				total_loss = actor_loss + 0.5 * critic_loss# - self.entropy_scaling(self.learning_step)*entropy
 				self.actor.optimizer.zero_grad()
 				self.critic.optimizer.zero_grad()
 				total_loss.mean().backward()
