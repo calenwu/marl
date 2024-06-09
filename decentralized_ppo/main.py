@@ -18,30 +18,42 @@ def state_to_array_lumber(state):
             state_list.append(tree[1])
         return state_list
 
-def train_lumberjacks():
+def train_lumberjacks(episodes, eval=False):
     n_trees = 4
     n_agents = 2
     n_actions = 5
-    agent = Centralized_PPO_Agent(n_actions, n_agents, (22*n_agents,), alpha=0.00003, n_epochs=4, batch_size=16)
-    env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_trees=n_trees, n_agents=n_agents)
+    state_dim = 2*n_agents+3*n_trees
+    grid_dim = 5
+    agent = Centralized_PPO_Agent(n_actions, n_agents, (state_dim,), alpha=0.00003, n_epochs=4, batch_size=16) #22*n_agents
+    env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(grid_dim, grid_dim), n_trees=n_trees, n_agents=n_agents)
     scores = []
-    for ep in range(5000):
-        if ep % 100 == 0:
-             print(f"Epp: {ep}")
-             print(np.mean(np.array(scores)))
-             scores = []
+    for ep in range(episodes):
+        if ep % 25 == 0 and ep > 0 and not eval:
+            print(f"Episode: {ep}")
+            print(np.mean(np.array(scores[ep-25:])))
         state = env.reset()
+        state = state_to_array_lumber(env.get_global_obs())
         score = 0
+        discount = 1
         steps = 0
         for i in range(100):
             action, probs, value, _ = agent.choose_action(state)
-            state_n, reward, done, info = env.step([action])
-            agent.remember(state_n, action, probs, value, reward, done)
-            score = score + reward
+            state_n, reward, done, info = env.step(action)
+            state_n = state_to_array_lumber(env.get_global_obs())
+            rewards = 0
+            done_all = True
+            probs_all = 0
+            for i in range(n_agents):
+                done_all = done_all and done[i]
+                rewards += reward[i]
+                probs_all += probs[i]
+            agent.remember(state_n, action, probs_all, value, rewards, done_all)
+            score = score + discount*reward
+            discount = 0.99*discount
             if np.all(done):
                 break
-            scores.append(score)
             steps += 1
+        scores.append(score)
         agent.learn()
     agent.save_models()
     """state = env.reset()
@@ -118,7 +130,7 @@ def train_navigation(num_episodes, eval = False):
 
 
 def __main__():
-   train_navigation(5000, train=False)
+   train_lumberjacks(5000, eval=False)
             
 
 

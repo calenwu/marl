@@ -133,8 +133,8 @@ class Centralized_PPO_Agent:
 	def remember(self, state, action, probs, vals, reward, done):
 		if self.train:
 			self.memory.store_memory(state, action, probs, vals, reward, done)
-			if self.memory.get_size() >= 50:
-				self.learn()
+			#if self.memory.get_size() >= 50:
+			#	self.learn()
 
 	def save_models(self):
 		print('... saving models ...')

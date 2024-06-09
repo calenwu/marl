@@ -18,7 +18,7 @@ from torch.distributions import Normal
 
 class LocalPPOMemory:
 
-	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 50):
+	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 100):
 		self.agent_id = agent_id
 		self.n_agents = n_agents
 		self.max_size = max_size
@@ -51,7 +51,6 @@ class LocalPPOMemory:
 	def generate_training_batches(self):
 		all_com = np.array([len(com) for com in self.comm])
 		all_com = np.array(all_com == self.n_agents)
-		np.array(self.belief_states)[all_com]
 		n_states = np.array(self.belief_states)[all_com].shape[0]
 		batch_start = np.arange(0, n_states, self.batch_size)
 		indices = np.arange(n_states, dtype=np.int64)
@@ -72,7 +71,7 @@ class LocalPPOMemory:
 		self.actions.append(all_actions)
 		all_probs = [-1 for _ in range(self.n_agents)]
 		all_probs[self.agent_id] = probs
-		self.probs.append(all_probs) # What to do with probs ????
+		self.probs.append(all_probs) 
 		all_vals = [-1 for _ in range(self.n_agents)]
 		all_vals[self.agent_id] = vals 
 		self.vals.append(all_vals)
@@ -109,7 +108,7 @@ class LocalPPOMemory:
 				all_rewards[ag.agent_id] = ag.memory.rewards[i][ag.agent_id]
 				all_dones[ag.agent_id] = ag.memory.dones[i][ag.agent_id]
 				all_belief_states.append(ag.memory.belief_states[i])
-			final_belief_state = distr.update_belief_state(all_belief_states,agent_ids, n_agents, n_agents)
+			final_belief_state = distr.update_belief_state(all_belief_states, agent_ids, n_agents, n_agents)
 			for ag in agent_list:
 				ag.memory.belief_states[i] = final_belief_state
 				ag.memory.probs[i] = all_probs
@@ -118,12 +117,11 @@ class LocalPPOMemory:
 				ag.memory.rewards[i] = all_rewards
 				ag.memory.dones[i] = all_dones
 				ag.memory.belief_states[i] = final_belief_state
-		return agent_list
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
+	def __init__(self, n_actions, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp2'):
 		super(ActorNetwork, self).__init__()
-		self.checkpoint_file = os.path.join(chkpt_dir, f'actor_torch_ppo{agent_id}')
+		self.checkpoint_file = chkpt_dir+f'/actor_torch_ppo_{agent_id}.pth'
 		self.actor = nn.Sequential(
 			nn.Linear(*input_dims, fc1_dims),
 			nn.Tanh(),
@@ -145,12 +143,12 @@ class ActorNetwork(nn.Module):
 		T.save(self.state_dict(), self.checkpoint_file)
 
 	def load_checkpoint(self):
-		T.load(self.state_dict(), self.checkpoint_file)
+		self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-	def __init__(self, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='checkpoints'):
+	def __init__(self, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp2'):
 		super(CriticNetwork, self).__init__()
-		self.checkpoint_file = os.path.join(chkpt_dir, f'critic_torch_ppo_{agent_id}')
+		self.checkpoint_file = chkpt_dir+f'/critic_torch_ppo_{agent_id}.pth'
 		self.critic = nn.Sequential(
 			nn.Linear(*input_dims, fc1_dims),
 			nn.Tanh(),
@@ -198,6 +196,7 @@ class Local_Agent:
 		self.state_distr.update_estimation_local_observation(observation)
 		belief_state = self.state_distr.get_belief_state()
 		state = T.tensor([belief_state], dtype=T.float32).to(self.actor.device)
+		#print(state)
 		dist = self.actor(state)
 		value = self.critic(state)
 		action = dist.sample()
@@ -213,7 +212,7 @@ class Local_Agent:
 		Updates all relevant parameters of the agents that are able to communicate
 		"""
 		agent_list = LocalPPOMemory.merge_memories(agent_list, n_agents, distr)
-		return agent_list
+		#return agent_list
 	
 	def learn(self):
 		for _ in range(self.n_epochs):
