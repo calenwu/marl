@@ -50,7 +50,7 @@ def state_to_array_lumber(state):
 
 def train_lumberjacks_local(num_episodes, eval = False):
     n_agents = 2
-    n_trees = 2
+    n_trees = 3
     grid_size = 3
     get_local_obs = lambda env: get_local_observations_lumber(state_to_array_lumber(env.get_global_obs()), n_agents, n_trees)
     env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(grid_size, grid_size), n_agents=n_agents, n_trees=n_trees)
@@ -64,17 +64,21 @@ def train_lumberjacks_local(num_episodes, eval = False):
         agents.append(local_agent)
     trans_ind = 0
     eps_rewards = []
-    best_reward = 0
+    avg_rewards = []
+    best_reward = -20
     for ep in range(num_episodes):
         if ep % 100 == 0 and ep > 0 and not eval:
             print(f"Episode: {ep}")
             av_rew = np.mean(np.array(eps_rewards[ep-100:]))
             print(av_rew)
+            avg_rewards.append(av_rew)
             if av_rew > best_reward:
                 best_reward = av_rew
                 for i in range(n_agents):
                     agents[i].save_models()
         state = env.reset()
+        for i in range(n_agents):
+            agents[i].state_distr.reset()
         obs, comm = get_local_obs(env)
         ep_rew = 0
         discount = 1
@@ -94,7 +98,6 @@ def train_lumberjacks_local(num_episodes, eval = False):
                 agents[i].observe(actions_all[i], probs_all[i], vals_all[i], reward[i], done[i], trans_ind)
             if eval:
                 env.render()
-                time.sleep(0.2)
                 print(agents[0].state_distr.get_belief_state().reshape(((2*n_agents+1), grid_size**2)))
                 print(ep_rew)
             trans_ind += 1
@@ -103,14 +106,18 @@ def train_lumberjacks_local(num_episodes, eval = False):
             if np.all(done):
                  break
             # Works only for two agents atm
-            #if len(comm_n[0]) == 2:
-            Local_Agent.communicate(agents, n_agents, Lumberjacks_State_Distribution)
+            if len(comm_n[0]) == 2:
+                Local_Agent.communicate(agents, n_agents, Lumberjacks_State_Distribution)
+            if eval:
+                time.sleep(60)
         if not eval:
             for agent in agents:
                 agent.learn()
         eps_rewards.append(ep_rew)
     if not eval:
         agent.save_models()
+    plt.plot(avg_rewards)
+    plt.savefig('Plots/eps_reward.png')
 
 
 def __main__():

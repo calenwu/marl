@@ -18,7 +18,7 @@ from torch.distributions import Normal
 
 class LocalPPOMemory:
 
-	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 100):
+	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 25):
 		self.agent_id = agent_id
 		self.n_agents = n_agents
 		self.max_size = max_size
@@ -86,7 +86,6 @@ class LocalPPOMemory:
 	@staticmethod
 	def merge_memories(agent_list, n_agents, distr):
 		agent_ids = []
-		
 		for ag in agent_list:
 			agent_ids.append(ag.agent_id)
 
@@ -117,6 +116,7 @@ class LocalPPOMemory:
 				ag.memory.rewards[i] = all_rewards
 				ag.memory.dones[i] = all_dones
 				ag.memory.belief_states[i] = final_belief_state
+		return final_belief_state
 
 class ActorNetwork(nn.Module):
 	def __init__(self, n_actions, input_dims, alpha, agent_id, fc1_dims=32, fc2_dims=32, chkpt_dir='tmp2'):
@@ -211,18 +211,22 @@ class Local_Agent:
 		"""
 		Updates all relevant parameters of the agents that are able to communicate
 		"""
-		agent_list = LocalPPOMemory.merge_memories(agent_list, n_agents, distr)
+		final_belief_state = LocalPPOMemory.merge_memories(agent_list, n_agents, distr)
+		for agent in agent_list:
+			d = distr.set_from_belief_state(final_belief_state, agent.agent_id, n_agents, agent.state_distr.n_trees, agent.state_distr.grid_size)
+			agent.state_distr = d
 		#return agent_list
 	
 	def learn(self):
 		for _ in range(self.n_epochs):
 			state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_training_batches()
-			action_arr = action_arr.T[self.agent_id]
 			reward_arr = np.sum(reward_arr, axis=1)
-			old_prob_arr = np.prod(old_prob_arr, axis=1)
-			vals_arr = np.sum(vals_arr, axis = 1)
+			#old_prob_arr = np.prod(old_prob_arr, axis=1)
+			#vals_arr = np.sum(vals_arr, axis = 1)
 			dones_arr = np.all(dones_arr, axis=1)
-			values = vals_arr
+			values = vals_arr.T[self.agent_id]
+			action_arr = action_arr.T[self.agent_id]
+			old_prob_arr = old_prob_arr.T[self.agent_id] #### THIS IS A PROBLEM OLD STATE DOESNT HAVE TO BE CURRENT STATE
 			advantages = np.zeros(len(reward_arr), dtype=np.float32)
 
 			for t in range(len(reward_arr) - 1):

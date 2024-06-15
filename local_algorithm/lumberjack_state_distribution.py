@@ -15,7 +15,12 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         self.observed_fields = np.zeros((grid_size, grid_size))
         self.agent_pos_distribution = np.ones((n_agents, grid_size, grid_size))/(grid_size**2*n_agents)
         self.observed_trees = np.zeros((n_agents+1, grid_size, grid_size))
-        
+    
+    def reset(self):
+        self.observed_fields = np.zeros((self.grid_size, self.grid_size))
+        self.agent_pos_distribution = np.ones((self.n_agents, self.grid_size, self.grid_size))/(self.grid_size**2*self.n_agents)
+        self.observed_trees = np.zeros((self.n_agents+1, self.grid_size, self.grid_size))
+
     def get_view(self, agent_pos):
         #print(agent_pos)
         view = np.ones((self.grid_size, self.grid_size))
@@ -110,7 +115,9 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         grid_size = int(np.sqrt(belief_states[0].shape[0]/(2*n_agents)))
         distrs = []
         for i in range(len(belief_states)):
+            #print(belief_states[i])
             distr = Lumberjacks_State_Distribution.set_from_belief_state(belief_states[i], ids[i], n_agents, n_trees, grid_size)
             distrs.append(distr)
         final_distr = Lumberjacks_State_Distribution.update_estimation_communication(distrs, n_agents, n_trees)
+        #print(final_distr.get_belief_state())
         return final_distr.get_belief_state()
