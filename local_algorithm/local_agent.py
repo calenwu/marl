@@ -102,12 +102,13 @@ class LocalPPOMemory:
 		agent_ids = []
 		for ag in agent_list:
 			agent_ids.append(ag.agent_id)
-
 		for i in range(agent_list[0].memory.get_size()):
 			ind = agent_list[0].memory.trans_ind[i] 
+			all_communicated = True
 			for ag in agent_list:
 				assert ag.memory.trans_ind[i] == ind # Safety check for merge
-			if len(agent_list[0].memory.comm[i]) == n_agents:
+				all_communicated = all_communicated and (len(ag.memory.comm[i]) == n_agents)
+			if all_communicated:
 				continue
 			all_com = []
 			all_actions = [-1 for _ in range(n_agents)]
