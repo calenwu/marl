@@ -18,14 +18,16 @@ from torch.distributions import Normal
 
 class LocalPPOMemory:
 
-	def __init__(self, n_agents, agent_id, batch_size = 16, max_size = 25):
+	def __init__(self, n_agents, n_trees, agent_id, distr, batch_size = 16, max_size = 25):
 		self.agent_id = agent_id
 		self.n_agents = n_agents
+		self.n_trees = n_trees
 		self.max_size = max_size
 		self.batch_size = batch_size
-
+		self.distr = distr
 		self.trans_ind = []				# a list of the indices of transitions stored in this buffer
 		self.belief_states = []			# the current belief about the state in the transition
+		self.final_belief_states = []
 		self.comm = [] 					# list of lists containing all communicated with agents
 		
 		
@@ -42,6 +44,7 @@ class LocalPPOMemory:
 		self.trans_ind = self.trans_ind[num_rem:]
 		self.comm = self.comm[num_rem:]
 		self.belief_states = self.belief_states[num_rem:]
+		self.final_belief_states = self.final_belief_states[num_rem:]
 		self.vals = self.vals[num_rem:]
 		self.probs = self.probs[num_rem:]
 		self.actions = self.actions[num_rem:]
@@ -51,12 +54,21 @@ class LocalPPOMemory:
 	def generate_training_batches(self):
 		all_com = np.array([len(com) for com in self.comm])
 		all_com = np.array(all_com == self.n_agents)
-		n_states = np.array(self.belief_states)[all_com].shape[0]
+		n_states = all_com.sum()
 		batch_start = np.arange(0, n_states, self.batch_size)
 		indices = np.arange(n_states, dtype=np.int64)
 		np.random.shuffle(indices)
 		batches = [indices[i:i+self.batch_size] for i in batch_start]
-		return np.array(self.belief_states)[all_com], np.array(self.actions)[all_com], np.array(self.probs)[all_com], np.array(self.vals)[all_com], np.array(self.rewards)[all_com], np.array(self.dones)[all_com], batches
+		return np.array([belief for belief in self.final_belief_states if not isinstance(belief, int)]), np.array(self.actions)[all_com], np.array(self.probs)[all_com], np.array(self.vals)[all_com], np.array(self.rewards)[all_com], np.array(self.dones)[all_com], batches
+
+	def compute_final_belief_states(self):
+		all_com = np.array([len(com) for com in self.comm])
+		not_comp = np.array([(isinstance(belief, int)) for belief in self.final_belief_states])
+		compute = np.array((all_com == self.n_agents) & not_comp)
+		for i in range(self.get_size()):
+			if compute[i]:
+				final_belief = self.distr.update_belief_state(self.belief_states[i], [j for j in range(self.n_agents)], n_agents=self.n_agents, n_trees=self.n_trees)
+				self.final_belief_states[i] = final_belief
 
 	def store_memory(self, belief_state, action, probs, vals, reward, done, trans_ind):
 		if self.get_size() >= self.max_size:
@@ -64,8 +76,10 @@ class LocalPPOMemory:
 		
 		self.trans_ind.append(trans_ind)
 		self.comm.append([self.agent_id])
-		
-		self.belief_states.append(belief_state)
+		all_beliefs = [-1 for _ in range(self.n_agents)]
+		all_beliefs[self.agent_id] = belief_state
+		self.belief_states.append(all_beliefs)
+		self.final_belief_states.append(-1)
 		all_actions = [-1 for _ in range(self.n_agents)]
 		all_actions[self.agent_id] = action
 		self.actions.append(all_actions)
@@ -84,12 +98,15 @@ class LocalPPOMemory:
 
 	# Assumes all transition indices are equall at the corresponding positions
 	@staticmethod
-	def merge_memories(agent_list, n_agents, distr):
+	def merge_memories(agent_list, n_agents, n_trees, distr):
 		agent_ids = []
 		for ag in agent_list:
 			agent_ids.append(ag.agent_id)
 
 		for i in range(agent_list[0].memory.get_size()):
+			ind = agent_list[0].memory.trans_ind[i] 
+			for ag in agent_list:
+				assert ag.memory.trans_ind[i] == ind # Safety check for merge
 			if len(agent_list[0].memory.comm[i]) == n_agents:
 				continue
 			all_com = []
@@ -98,24 +115,32 @@ class LocalPPOMemory:
 			all_vals = [-1 for _ in range(n_agents)]
 			all_rewards = [-1 for _ in range(n_agents)]
 			all_dones = [-1 for _ in range(n_agents)]
-			all_belief_states = []
+			all_beliefs = [-1 for _ in range(n_agents)]
 			for ag in agent_list:
-				ag.memory.comm[i] = list(set(agent_ids+ag.memory.comm[i]))
-				all_probs[ag.agent_id] = ag.memory.probs[i][ag.agent_id]
-				all_actions[ag.agent_id] = ag.memory.actions[i][ag.agent_id]
-				all_vals[ag.agent_id] = ag.memory.vals[i][ag.agent_id]
-				all_rewards[ag.agent_id] = ag.memory.rewards[i][ag.agent_id]
-				all_dones[ag.agent_id] = ag.memory.dones[i][ag.agent_id]
-				all_belief_states.append(ag.memory.belief_states[i])
-			final_belief_state = distr.update_belief_state(all_belief_states, agent_ids, n_agents, n_agents)
+				all_com = list(set(ag.memory.comm[i]+all_com))
+				for j in ag.memory.comm[i]:
+					all_probs[j] = ag.memory.probs[i][j]
+					all_actions[j] = ag.memory.actions[i][j]
+					all_vals[j] = ag.memory.vals[i][j]
+					all_rewards[j] = ag.memory.rewards[i][j]
+					all_dones[j] = ag.memory.dones[i][j]
+					all_beliefs[j] = ag.memory.belief_states[i][j]
+
 			for ag in agent_list:
-				ag.memory.belief_states[i] = final_belief_state
+				ag.memory.comm[i] = all_com
 				ag.memory.probs[i] = all_probs
 				ag.memory.actions[i] = all_actions
 				ag.memory.vals[i] = all_vals
 				ag.memory.rewards[i] = all_rewards
 				ag.memory.dones[i] = all_dones
-				ag.memory.belief_states[i] = final_belief_state
+				ag.memory.belief_states[i] = all_beliefs
+
+		known_beliefs = [belief for belief in all_beliefs if not isinstance(belief, int)]
+		final_belief_state = distr.update_belief_state(known_beliefs, [i for i in range(len(all_beliefs)) if not isinstance(all_beliefs[i], int)], n_agents, n_trees)
+		
+		for ag in agent_list:
+			ag.memory.compute_final_belief_states()
+		
 		return final_belief_state
 
 class ActorNetwork(nn.Module):
@@ -173,8 +198,8 @@ class CriticNetwork(nn.Module):
 
 class Local_Agent:
 	
-	def __init__(self, input_dims, num_agents, n_actions, agent_id, state_distribution, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
-			policy_clip=0.2, batch_size=64, n_epochs=10, layer_size = 64):
+	def __init__(self, input_dims, num_agents, n_trees, n_actions, agent_id, state_distribution, distr, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+			policy_clip=0.2, batch_size=64, n_epochs=10, layer_size = 64, memory_max_size = 25):
 		self.agent_id = agent_id
 		self.state_distr = state_distribution
 		self.num_agents = num_agents
@@ -184,7 +209,7 @@ class Local_Agent:
 		self.n_epochs = n_epochs
 		self.gae_lambda = gae_lambda
 	
-		self.memory = LocalPPOMemory(num_agents, agent_id)
+		self.memory = LocalPPOMemory(num_agents, n_trees, agent_id,  distr=distr, max_size = memory_max_size)
 		self.actor = ActorNetwork(n_actions, input_dims, alpha, agent_id, fc1_dims= layer_size, fc2_dims= layer_size)
 		self.critic = CriticNetwork(input_dims, alpha, agent_id, fc1_dims= layer_size, fc2_dims= layer_size)
 
@@ -195,7 +220,7 @@ class Local_Agent:
 	def choose_action(self, observation):
 		self.state_distr.update_estimation_local_observation(observation)
 		belief_state = self.state_distr.get_belief_state()
-		state = T.tensor([belief_state], dtype=T.float32).to(self.actor.device)
+		state = T.tensor([np.array(belief_state)], dtype=T.float32).to(self.actor.device)
 		#print(state)
 		dist = self.actor(state)
 		value = self.critic(state)
@@ -207,11 +232,11 @@ class Local_Agent:
 		#return random.randint(0, self.n_actions-1), 1, 1, np.ones(self.n_actions)/self.n_actions
 
 	@staticmethod
-	def communicate(agent_list, n_agents, distr):
+	def communicate(agent_list, n_agents, n_trees, distr):
 		"""
 		Updates all relevant parameters of the agents that are able to communicate
 		"""
-		final_belief_state = LocalPPOMemory.merge_memories(agent_list, n_agents, distr)
+		final_belief_state = LocalPPOMemory.merge_memories(agent_list, n_agents, n_trees, distr)
 		for agent in agent_list:
 			d = distr.set_from_belief_state(final_belief_state, agent.agent_id, n_agents, agent.state_distr.n_trees, agent.state_distr.grid_size)
 			agent.state_distr = d

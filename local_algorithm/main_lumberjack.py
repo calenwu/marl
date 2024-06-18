@@ -5,6 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 from pettingzoo.mpe import simple_spread_v3
 import random
 sys.path.append("../")
@@ -48,17 +49,32 @@ def state_to_array_lumber(state):
 		state_list.append(tree[1])
 	return np.array(state_list)
 
-def train_lumberjacks_local(num_episodes, eval = False):
-    n_agents = 2
-    n_trees = 3
-    grid_size = 3
+def communication_bubbles(comm):
+    all_agents = set(np.linspace(0, len(comm)-1, len(comm)).astype(int))
+    bubbles = []
+    for i in range(len(comm)):
+        if i in all_agents:
+            all_agents.remove(i)
+            new_bubble = set([])
+            queue = [i]
+            while len(queue) > 0:
+                el = queue.pop(0)
+                new_bubble.add(el)
+                for sec_el in comm[el]:
+                    if sec_el in all_agents:
+                        queue.append(sec_el)
+                        all_agents.remove(sec_el)
+            bubbles.append(list(new_bubble))
+    return bubbles
+
+def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episodes = 10000, eval = False, csv_loc = "rewards_experiments/episodes_rewards.csv", exp_name = ""):
     get_local_obs = lambda env: get_local_observations_lumber(state_to_array_lumber(env.get_global_obs()), n_agents, n_trees)
     env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(grid_size, grid_size), n_agents=n_agents, n_trees=n_trees)
     state_dim = (2*n_agents+1)*grid_size**2
     agents = []
     for i in range(n_agents):
         state_distr = Lumberjacks_State_Distribution(n_agents, n_trees, grid_size, i)
-        local_agent = Local_Agent((state_dim, ), n_agents, 5, i, state_distr, alpha=10e-6, layer_size=64*n_agents)
+        local_agent = Local_Agent((state_dim, ), n_agents, n_trees, 5, i, state_distr, distr=Lumberjacks_State_Distribution, alpha=10e-6, layer_size=128, memory_max_size=50)
         if eval:
              local_agent.load_models()
         agents.append(local_agent)
@@ -91,23 +107,27 @@ def train_lumberjacks_local(num_episodes, eval = False):
                 actions_all.append(action) 
                 probs_all.append(probs)
                 vals_all.append(value)
-            state_n, reward, done, _ = env.step(actions_all)
-            obs_n, comm_n = get_local_obs(env)
+            _, reward, done, _ = env.step(actions_all)
+            obs_n, comm = get_local_obs(env)
             for i in range(n_agents):
-                ep_rew +=  reward[i]
+                ep_rew += discount*reward[i]
                 agents[i].observe(actions_all[i], probs_all[i], vals_all[i], reward[i], done[i], trans_ind)
+            discount *= 0.99
             if eval:
                 env.render()
                 print(agents[0].state_distr.get_belief_state().reshape(((2*n_agents+1), grid_size**2)))
                 print(ep_rew)
             trans_ind += 1
-            state = state_n
-            obs, comm = obs_n, comm_n
+            obs = obs_n
             if np.all(done):
                  break
-            # Works only for two agents atm
-            if len(comm_n[0]) == 2:
-                Local_Agent.communicate(agents, n_agents, Lumberjacks_State_Distribution)
+            bubbles = communication_bubbles(comm)
+            for bubble in bubbles:
+                if len(bubble) > 1:
+                    agent_list = []
+                    for el in bubble:
+                        agent_list.append(agents[el])
+                    Local_Agent.communicate(agent_list, n_agents, n_trees, Lumberjacks_State_Distribution)
             if eval:
                 time.sleep(60)
         if not eval:
@@ -116,12 +136,29 @@ def train_lumberjacks_local(num_episodes, eval = False):
         eps_rewards.append(ep_rew)
     if not eval:
         agent.save_models()
+    reward_out = pd.DataFrame(eps_rewards, columns=['ep_rew'])
+    reward_out.to_csv(csv_loc)
     plt.plot(avg_rewards)
-    plt.savefig('Plots/eps_reward.png')
+    plt.savefig(f'Plots/{exp_name}_eps_reward.png')
 
 
 def __main__():
     # -5.922 after 5000 eps equall step size
-    train_lumberjacks_local(10000, False)
+    rew_dir = "rewards_experiments/"
+    model_dir = 'tmp2'
+    if not os.path.exists(rew_dir):
+        os.makedirs(rew_dir)
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    n_agents_list = [2, 2, 2, 3, 4]
+    n_trees_list = [4, 5, 6, 5, 5]
+    grid_size_list = [3, 4, 5, 4, 4]
+    for i in range(len(n_agents_list)):
+        n_agents = n_agents_list[i]
+        n_trees = n_trees_list[i]
+        grid_size = grid_size_list[i]
+        exp_name = f"ag_{n_agents}_tr_{n_trees}_gs_{grid_size}"
+        print(exp_name)
+        train_lumberjacks_local(n_agents = n_agents, n_trees = n_trees, grid_size = grid_size, num_episodes = 30000, eval = False, csv_loc=rew_dir+f"episodes_rewards_{exp_name}.csv", exp_name=exp_name)
 
 __main__()
