@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch as T
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 import matplotlib.pyplot as plt
@@ -50,25 +51,29 @@ class PpoMemory:
 		self.dones = []
 
 class ActorNetwork(nn.Module):
-	def __init__(self, n_actions, input_dims, alpha, fc1_dims=128, fc2_dims=128, chkpt_dir='tmp/ppo'):
+	def __init__(self, n_heads, n_actions, input_dims, alpha, fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
 		super(ActorNetwork, self).__init__()
 		self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
+		self.n_heads = n_heads
 		self.actor = nn.Sequential(
 			nn.Linear(input_dims, fc1_dims),
 			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
-			nn.Tanh(),
-			nn.Linear(fc2_dims, n_actions),
-			nn.Softmax(dim=-1)
+			nn.Tanh()
 		)
-		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+		self.heads = []
+		for n in range(n_heads):
+			self.heads.append(nn.Linear(fc2_dims, n_actions))
 		self.device = device
 		self.to(self.device)
 
 	def forward(self, state):
-		dist = self.actor(state)
-		dist = Categorical(dist)
-		return dist
+		x = self.actor(state)
+		dists = []
+		for head in self.heads:
+			temp = F.softmax(head(x), dim=0)
+			dists.append(Categorical(temp))
+		return dists
 
 	def save_checkpoint(self, path: str=None):
 		if not path:
@@ -92,7 +97,6 @@ class CriticNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(fc2_dims, 1)
 		)
-		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 		self.device = device
 		self.to(self.device)
 
@@ -111,10 +115,11 @@ class CriticNetwork(nn.Module):
 			path = self.checkpoint_file
 		self.load_state_dict(T.load(path))
 
-class Agent:
+class Agent(nn.Module):
 	# N = horizon, steps we take before we perform an update
-	def __init__(self, env_name: str, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+	def __init__(self, env_name: str, n_heads: int, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
 			policy_clip=0.2, batch_size=64, n_epochs=10):
+		super().__init__()
 		self.env_name = env_name
 		self.plotter_x = []
 		self.plotter_y = []
@@ -123,8 +128,9 @@ class Agent:
 		self.n_epochs = n_epochs
 		self.gae_lambda = gae_lambda
 
-		self.actor = ActorNetwork(n_actions, input_dims, alpha)
+		self.actor = ActorNetwork(n_heads, n_actions, input_dims, alpha)
 		self.critic = CriticNetwork(input_dims, alpha)
+		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 		self.memory = PpoMemory(batch_size)
 
 	def remember(self, state, action, probs, vals, reward, done):
@@ -140,20 +146,24 @@ class Agent:
 
 	def choose_action(self, observation: np.array):
 		state = T.tensor(np.array(observation), dtype=T.float32).to(self.actor.device)
-		dist = self.actor(state)
+		dists = self.actor(state)
 		value = self.critic(state)
-		action = dist.sample()
 
-		probs = T.squeeze(dist.log_prob(action)).item()
-		action = T.squeeze(action).item()
+		actions = []
+		probs = []
+		for dist in dists:
+			action = dist.sample()
+			probs.append(dist.log_prob(action).item())
+			actions.append(action.item())
+
 		value = T.squeeze(value).item()
-		return action, probs, value
+		return actions, probs, value
 
 	def learn(self):
 		for _ in range(self.n_epochs):
 			state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_batches()
 			values = vals_arr
-			advantages = np.zeros(len(reward_arr), dtype=np.float32)
+			advantages = np.zeros(reward_arr.shape, dtype=np.float32)
 
 			for t in range(len(reward_arr) - 1):
 				discount = 1
@@ -163,34 +173,44 @@ class Agent:
 					discount *= self.gamma * self.gae_lambda
 				advantages[t] = a_t
 			advantages = T.tensor(advantages, dtype=T.float32).to(self.actor.device)
+			advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)  # Normalize advantages
 			values = T.tensor(values, dtype=T.float32).to(self.actor.device)
 			for batch in batches:
 				states = T.tensor(state_arr[batch], dtype=T.float32).to(self.actor.device)
 				old_probs = T.tensor(old_prob_arr[batch], dtype=T.float32).to(self.actor.device)
 				actions = T.tensor(action_arr[batch], dtype=T.float32).to(self.actor.device)
 
-				dist = self.actor(states)
+				dists = self.actor(states)
 				critic_values = self.critic(states)
 				critic_values = T.squeeze(critic_values)
 
-				new_probs = dist.log_prob(actions)
+
+				new_probs = T.stack(
+					[dist.log_prob(actions[:, i]) for i, dist in enumerate(dists)], dim=1
+				)
 				prob_ratio = new_probs.exp() / old_probs.exp()
 
-				weighted_probs = advantages[batch] * prob_ratio
-				weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantages[batch]
-				actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
-				returns = advantages[batch] + values[batch]
+				actor_losses = []
+				for i in range(self.actor.n_heads):
+					temp = advantages[batch, i]
+					temp2 = prob_ratio[:, i]
+					weighted_probs = temp * temp2
+					weighted_clipped_probs = T.clamp(temp2, 1 - self.policy_clip, 1 + self.policy_clip) * temp
+					actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
+					actor_losses.append(actor_loss)
+
+				actor_loss = T.stack(actor_losses).mean()
+
+				returns = T.sum(advantages[batch], dim=1, keepdim=True) + values[batch]
 				critic_loss = (returns - critic_values) ** 2
 				critic_loss = critic_loss.mean()
 
 				self.plotter_x.append(len(self.plotter_x) + 1)
 				self.plotter_y.append(critic_loss.item())
 				total_loss = actor_loss + 0.5 * critic_loss
-				self.actor.optimizer.zero_grad()
-				self.critic.optimizer.zero_grad()
+				self.optimizer.zero_grad()
 				total_loss.mean().backward()
-				self.actor.optimizer.step()
-				self.critic.optimizer.step()
+				self.optimizer.step()
 
 				# if len(self.plotter_x) > 10000:
 				# 	# print a plot and save it with the self.plotter_x and self.plotter_y

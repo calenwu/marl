@@ -1,17 +1,28 @@
 import time
 import gym
 import numpy as np
-from agent import Agent
 import matplotlib.pyplot as plt
 import pandas as pd
 from pettingzoo.mpe import simple_spread_v3
+from agent import Agent
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
 
+def generate_action_space(n_actions, n_agents, l):
+	if n_agents == 0:
+		return l
+	len_l = len(l)
+	for li in range(len_l):
+		temp = l.pop(0)
+		for i in range(n_actions):
+			l.append(temp.copy() + [i])
+	l = generate_action_space(n_actions, n_agents-1, l)
+	return l
+
 class SimpleSpreadV3:
 	def __init__(self, evaluate=False):
-		N = 3
+		N = 2
 		self.env = simple_spread_v3.parallel_env(N=N, max_cycles=25, local_ratio=0.5,
 			render_mode='human' if evaluate else None, continuous_actions=False)
 		self.env.reset(seed=42)
@@ -20,11 +31,7 @@ class SimpleSpreadV3:
 		self.state_dim = self.obs_dim * self.n_agents
 		self.action_dim = 5 ** N
 		self.evaluate = evaluate
-		ACTION_SPACE = []
-		for x in range(5):
-			for y in range(5):
-				ACTION_SPACE.append([x, y])
-		self.ACTION_SPACE = ACTION_SPACE
+		self.ACTION_SPACE = generate_action_space(5, N, [[]])
 		# env.action_dim_n = [env.action_spaces[agent].n for agent in env.agents][0]
 
 	def reset(self):
@@ -36,7 +43,7 @@ class SimpleSpreadV3:
 		a_n = self.ACTION_SPACE[a_n]
 		actions = {}
 		for i, agent in enumerate(self.env.agents):
-			actions[agent] = a_n[i]
+			actions[agent] = a_n[i] if len(self.env.agents) != 1 else a_n
 		obs_next_n, r_n, done_n, trunc, info = self.env.step(actions)
 		obs_next_n = np.array([obs_next_n[agent] for agent in obs_next_n.keys()])
 		done_n = np.array([val for val in done_n.values()])
@@ -44,7 +51,7 @@ class SimpleSpreadV3:
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
-		return obs_next_n, sum(r_n), all(done_n), trunc, info, np.array(obs_next_n).flatten()
+		return np.array(obs_next_n), sum(r_n), all(done_n), trunc, info, np.array(obs_next_n).flatten()
 
 	def render(self):
 		self.env.render()
@@ -202,20 +209,14 @@ class CatMouseDiscrete:
 
 class Lumberjacks:
 	def __init__(self, evaluate=False):
-		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(8, 8), n_agents=4) #n_trees=8,
+		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=2) #n_trees=8,
 		self.state_dim = np.sum([self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)])
 		self.obs_dim = self.env.observation_space[1].shape[0]
 		self.action_dim = 5 ** self.env.n_agents
 		self.n_agents = self.env.n_agents
 		self.env.reset()
 		self.evaluate = evaluate
-		ACTION_SPACE = []
-		for x in range(5):
-			for y in range(5):
-				for z in range(5):
-					for a in range(5):
-						ACTION_SPACE.append([x, y, z, a])
-		self.ACTION_SPACE = ACTION_SPACE
+		self.ACTION_SPACE = generate_action_space(5, self.n_agents, [[]])
 
 	def reset(self):
 		obs_n = self.env.reset()
@@ -239,41 +240,29 @@ class Lumberjacks:
 		self.env.close()
 
 
-def plot_learning_curve(x, scores, figure_file):
-	running_avg = np.zeros(len(scores))
-	for i in range(len(running_avg)):
-		running_avg[i] = np.mean(scores[max(0, i-100):(i+1)])
-	plt.plot(x, running_avg)
-	plt.title('Running average of previous 100 scores')
-	plt.savefig(figure_file)
+def plot_learning_curve(name, episode_history, score_history):
+	plt.figure(figsize=(10, 5))
+	episode_history, score_history = episode_history[::200], score_history[::200]
+	plt.plot(episode_history, score_history)
+	plt.xlabel('Episodes')
+	plt.ylabel('Reward')
+	plt.title('Reward vs Episodes')
+	plt.grid(True)
+	plt.savefig(f'{name}.png')
+	data = {'Episodes': episode_history, 'Reward': score_history}
+	df = pd.DataFrame(data)
+	df.to_csv(f'{name}.csv', index=False)
 
 
-if __name__ == '__main__':
-	# env = gym.make('CartPole-v0')
-	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
-	# env = CatMouse(evaluate=False)
-	# env = Lumberjacks(evaluate=False)
-	env = SimpleSpreadV3(evaluate=False)
-	learning_step = 20
-	agent = Agent(
-		env_name='lumberjacks',
-		n_actions=env.action_dim,
-		input_dims=env.state_dim,
-		alpha= 0.0003,
-		gamma=0.99,
-		n_epochs=4,
-		batch_size=16)
-	n_games = 20000
-	# agent.load_models()
-	# figure_file = 'plots/cartpole.png'
-	best_score = -100
-
+def train(agent: Agent, env, n_games=10000, best_score=-100, learning_step=128):
 	episode_history = []
 	score_history = []
 
 	learn_iters = 0
 	avg_score = 0
 	n_steps = 0
+
+	print_interval = 100
 
 	for i in range(n_games):
 		done = False
@@ -282,8 +271,7 @@ if __name__ == '__main__':
 		steps = 0
 		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
-			# observation_, reward, done, info = env.step(d[action])
-			_, reward, done, _, info, state_ = env.step(action)
+			_, reward, done, _, _, state_ = env.step(action)
 			n_steps += 1
 			score += reward
 			agent.remember(state, action, prob, val, reward, done)
@@ -298,29 +286,41 @@ if __name__ == '__main__':
 		if avg_score > best_score:
 			best_score = avg_score
 			agent.save_models()
-		print('episode', i, 'score %.1f' % score, 'avg score %.1f' % avg_score,
-			  'time_steps', n_steps, 'learning_steps', learn_iters)
-
-	plt.figure(figsize=(10, 5))
-	episode_history, score_history = episode_history[::200], score_history[::200]
-	plt.plot(episode_history, score_history)
-	plt.xlabel('Episodes')
-	plt.ylabel('Reward')
-	plt.title('Reward vs Episodes')
-	plt.grid(True)
-	plt.savefig('reward_vs_episodes_ppo_lumberjacks.png')
-	data = {'Episodes': episode_history, 'Reward': score_history}
-	df = pd.DataFrame(data)
-	df.to_csv('reward_vs_episodes_ppo_lumberjacks.csv', index=False)
-
-	# plot_learning_curve(x, score_history, figure_file)
+		if i % print_interval == 0:
+			print(f'episode: {i} | avg score: {avg_score:.1f} | learning_steps: {learn_iters}')
 
 
-	# observation = env.reset()
-	# done = False
-	# while not done:
-	# 	action, prob, val = agent.choose_action(observation)
-	# 	observation_, reward, done, info = env.step(action)
-	# 	env.render()
-	# 	time.sleep(0.01)
-	# 	observation = observation_
+def evaluate(agent: Agent, env):
+	_, _, observation = env.reset()
+	done = False
+	while not done:
+		action, prob, val = agent.choose_action(observation)
+		_, reward, done, _, _, observation_ = env.step(action)
+		env.render()
+		time.sleep(0.01)
+		observation = observation_
+
+if __name__ == '__main__':
+	# env = gym.make('CartPole-v0')
+	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
+	eval = True
+	# env = CatMouse(evaluate=eval)
+	env = Lumberjacks(evaluate=eval)
+	# env = SimpleSpreadV3(evaluate=eval)
+	agent = Agent(
+		env_name='lumberjacks',
+		n_actions=env.action_dim,
+		input_dims=env.state_dim,
+		alpha= 0.0003,
+		gamma=0.99,
+		n_epochs=4,
+		batch_size=64
+	)
+	if eval:
+		agent.load_models()
+		for i in range(10):
+			evaluate(agent, env)
+	else:
+		train(agent, env)
+		agent.save_models()
+	

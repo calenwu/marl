@@ -58,6 +58,8 @@ class ActorNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
 			nn.Tanh(),
+			nn.Linear(fc1_dims, fc2_dims),
+			nn.Tanh(),
 			nn.Linear(fc2_dims, n_actions),
 			nn.Softmax(dim=-1)
 		)
@@ -90,6 +92,8 @@ class CriticNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(fc1_dims, fc2_dims),
 			nn.Tanh(),
+			nn.Linear(fc1_dims, fc2_dims),
+			nn.Tanh(),
 			nn.Linear(fc2_dims, 1)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -113,7 +117,7 @@ class CriticNetwork(nn.Module):
 
 class Agent:
 	# N = horizon, steps we take before we perform an update
-	def __init__(self, env_name: str, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+	def __init__(self, env_name: str, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0001, gae_lambda=0.95,
 			policy_clip=0.2, batch_size=64, n_epochs=10):
 		self.env_name = env_name
 		self.plotter_x = []
@@ -130,13 +134,13 @@ class Agent:
 	def remember(self, state, action, probs, vals, reward, done):
 		self.memory.store_memory(state, action, probs, vals, reward, done)
 
-	def save_models(self, path: str=None):
-		self.actor.save_checkpoint(f'./checkpoints/ppo_actor_{self.env_name}.pth')
-		self.critic.save_checkpoint(f'./checkpoints/ppo_critic_{self.env_name}.pth')
+	def save_models(self, id: str=None):
+		self.actor.save_checkpoint(f'./checkpoints/ppo_actor_{id}_{self.env_name}.pth')
+		self.critic.save_checkpoint(f'./checkpoints/ppo_critic_{id}_{self.env_name}.pth')
 
-	def load_models(self, path: str=None):
-		self.actor.load_checkpoint(f'./checkpoints/ppo_actor_{self.env_name}.pth')
-		self.critic.load_checkpoint(f'./checkpoints/ppo_critic_{self.env_name}.pth')
+	def load_models(self, id: str=None):
+		self.actor.load_checkpoint(f'./checkpoints/ppo_actor_{id}_{self.env_name}.pth')
+		self.critic.load_checkpoint(f'./checkpoints/ppo_critic_{id}_{self.env_name}.pth')
 
 	def choose_action(self, observation: np.array):
 		state = T.tensor(np.array(observation), dtype=T.float32).to(self.actor.device)
@@ -178,7 +182,8 @@ class Agent:
 
 				weighted_probs = advantages[batch] * prob_ratio
 				weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantages[batch]
-				actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
+				entropy = dist.entropy().mean()
+				actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean() - 1 * entropy
 				returns = advantages[batch] + values[batch]
 				critic_loss = (returns - critic_values) ** 2
 				critic_loss = critic_loss.mean()
@@ -189,6 +194,17 @@ class Agent:
 				self.actor.optimizer.zero_grad()
 				self.critic.optimizer.zero_grad()
 				total_loss.mean().backward()
+
+				# print("Actor Network Gradients:")
+				# for name, param in self.actor.named_parameters():
+				# 	if param.grad is not None:
+				# 		print(f"{name}: {param.grad}")
+
+				# print("Critic Network Gradients:")
+				# for name, param in self.critic.named_parameters():
+				# 	if param.grad is not None:
+				# 		print(f"{name}: {param.grad}")
+
 				self.actor.optimizer.step()
 				self.critic.optimizer.step()
 
