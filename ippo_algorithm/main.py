@@ -277,8 +277,7 @@ def train(agents: List[Agent], env, n_games=10000, best_score=-100, learning_ste
 	n_steps = 0
 
 	print_interval = 100
-
-	for episode in range(n_games):
+	for episode in range():
 		dones = [False]
 		state, _, _ = env.reset()
 		score = 0
@@ -296,7 +295,8 @@ def train(agents: List[Agent], env, n_games=10000, best_score=-100, learning_ste
 			for i, agent in enumerate(agents):
 				agent.remember(state[i], actions[i], probs[i], vals[i], reward[i], dones[i])
 			if n_steps % learning_step == 0:
-				agent.learn()
+				for agent in agents:
+					agent.learn()
 				learn_iters += 1
 			state = state_
 			steps += 1
@@ -308,7 +308,6 @@ def train(agents: List[Agent], env, n_games=10000, best_score=-100, learning_ste
 			agent.save_models()
 		if episode % print_interval == 0:
 			print(f'episode: {episode} | avg score: {avg_score:.1f} | learning_steps: {learn_iters}')
-	return score_history
 
 
 def evaluate(agents: List[Agent], env):
