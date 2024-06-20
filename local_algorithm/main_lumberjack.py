@@ -71,10 +71,11 @@ def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episod
     get_local_obs = lambda env: get_local_observations_lumber(state_to_array_lumber(env.get_global_obs()), n_agents, n_trees)
     env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(grid_size, grid_size), n_agents=n_agents, n_trees=n_trees)
     state_dim = (2*n_agents+1)*grid_size**2
+    train_when_full = False
     agents = []
     for i in range(n_agents):
         state_distr = Lumberjacks_State_Distribution(n_agents, n_trees, grid_size, i)
-        local_agent = Local_Agent((state_dim, ), n_agents, n_trees, 5, i, state_distr, distr=Lumberjacks_State_Distribution, alpha=10e-6, layer_size=128, memory_max_size=50)
+        local_agent = Local_Agent((state_dim, ), n_agents, n_trees, 5, i, state_distr, distr=Lumberjacks_State_Distribution, alpha=10e-6, layer_size=128, memory_max_size=50, train_when_full=train_when_full)
         if eval:
              local_agent.load_models()
         agents.append(local_agent)
@@ -130,7 +131,7 @@ def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episod
                     Local_Agent.communicate(agent_list, n_agents, n_trees, Lumberjacks_State_Distribution)
             if eval:
                 time.sleep(60)
-        if not eval:
+        if not eval and not train_when_full:
             for agent in agents:
                 agent.learn()
         eps_rewards.append(ep_rew)
@@ -141,9 +142,7 @@ def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episod
     plt.plot(avg_rewards)
     plt.savefig(f'Plots/{exp_name}_eps_reward.png')
 
-
-def __main__():
-    # -5.922 after 5000 eps equall step size
+def run_experiments():
     rew_dir = "rewards_experiments/"
     model_dir = 'tmp2'
     if not os.path.exists(rew_dir):
@@ -160,5 +159,10 @@ def __main__():
         exp_name = f"ag_{n_agents}_tr_{n_trees}_gs_{grid_size}"
         print(exp_name)
         train_lumberjacks_local(n_agents = n_agents, n_trees = n_trees, grid_size = grid_size, num_episodes = 30000, eval = False, csv_loc=rew_dir+f"episodes_rewards_{exp_name}.csv", exp_name=exp_name)
+
+
+def __main__():
+    # -5.922 after 5000 eps equall step size
+    train_lumberjacks_local(n_agents = 3, n_trees = 3, grid_size = 3, num_episodes = 30000, eval = False)
 
 __main__()
