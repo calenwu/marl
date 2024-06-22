@@ -212,7 +212,7 @@ class CatMouseDiscrete:
 class Lumberjacks:
 	def __init__(self, n_agents, evaluate=False):
 		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=n_agents, n_trees=8) #n_trees=8,
-		self.state_dim = [self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)][0] # 75
+		self.state_dim = 53 # [self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)][0] # 75
 		self.obs_dim = self.env.observation_space[0].shape[0]
 		self.action_dim = 5
 		self.n_agents = self.env.n_agents
@@ -223,7 +223,7 @@ class Lumberjacks:
 	def reset(self):
 		obs_n = self.env.reset()
 		obs_n = np.array(obs_n)
-		# obs_n = np.array([self.get_global_obs(), self.get_global_obs()])
+		obs_n = np.array([self.get_global_obs(0), self.get_global_obs(1)])
 		return obs_n, None, obs_n.flatten()
 
 	def step(self, a_n):
@@ -232,19 +232,35 @@ class Lumberjacks:
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
-		# obs_next_n = np.array([self.get_global_obs(), self.get_global_obs()])
+		obs_next_n = np.array([self.get_global_obs(0), self.get_global_obs(1)])
 		return obs_next_n, r_n, done_n, None, info, obs_next_n.flatten()
 
-	def get_global_obs(self):
+	def get_global_obs(self, agent_id):
+		# 0 agent id
+		# 1 coords
+		# 1 coords
+		def get_value(x, y):
+			if -2 <= x <= 2 and -2 <= y <= 2:
+				return (x + 2) * 5 + (y + 2)
+		# def get_value(x, y):
+		# 	return (x + 1) * 3 + (y + 1)
 		global_env = self.env.get_global_obs()
-		glob_state = [0 for _ in range(75)]
+		glob_state = [0 for _ in range(3 + 2 * 25)]
+		agent_pos = global_env[0]
+		glob_state[0] = agent_id
+		glob_state[1] = agent_pos[agent_id][0] - 1
+		glob_state[2] = agent_pos[agent_id][1] - 1
+		for i, agent in enumerate(agent_pos):
+			if i != agent_id:
+				if (glob_state[1] - 2 <=agent[0] - 1 <= glob_state[1] + 2 and glob_state[2] - 2 <= agent[1] - 1 <= glob_state[2] + 2):
+					glob_state[get_value(agent[0] - glob_state[1] - 1, agent[1] - glob_state[2] - 1) + 3] += 1
+
 		tree_pos = global_env[1]
 		for pos, strength in tree_pos:
-			glob_state[5*(pos[0] - 1) + pos[1]] = strength
+			if (glob_state[1] - 2 <= pos[0] - 1 <= glob_state[1] + 2 and glob_state[2] - 2 <= pos[1] - 1 <= glob_state[2] + 2):
+				temp = get_value(pos[0] - glob_state[1] - 1, pos[1] - glob_state[2] - 1)
+				glob_state[temp + 25 + 3] = strength
 
-		agent_pos = global_env[0]
-		for agent in agent_pos:
-			glob_state[5*(agent[0] - 1) + agent[1] + 25] = 1
 		return glob_state
 
 	def render(self):
@@ -313,6 +329,7 @@ def train(agents: List[Agent], env, n_games=10000, best_score=-100, learning_ste
 				learn_iters += 1
 			state = state_
 			steps += 1
+			# env.render()
 		score_history.append(score)
 		episode_history.append(n_steps)
 		avg_score = np.mean(score_history[-100:])
@@ -373,7 +390,7 @@ if __name__ == '__main__':
 	else:
 		# for i, agent in enumerate(agents):
 		# 	agent.load_models(id=i)
-		score_history = train(agents, env, n_games=100000)
+		score_history = train(agents, env, n_games=50000)
 		plot_learning_curve('lumberjacks', [i for i in range(len(score_history))], score_history)
 		for i, agent in enumerate(agents):
 			agent.save_models(id=i)
