@@ -116,7 +116,6 @@ def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episod
             discount *= 0.99
             if eval:
                 env.render()
-                print(agents[0].state_distr.get_belief_state().reshape(((2*n_agents+1), grid_size**2)))
                 print(ep_rew)
             trans_ind += 1
             obs = obs_n
@@ -128,7 +127,7 @@ def train_lumberjacks_local(n_agents = 2, n_trees = 5, grid_size = 4, num_episod
                     agent_list = []
                     for el in bubble:
                         agent_list.append(agents[el])
-                    Local_Agent.communicate(agent_list, n_agents, n_trees, Lumberjacks_State_Distribution)
+                    Local_Agent.communicate(agents, n_agents, n_trees, Lumberjacks_State_Distribution)
             if eval:
                 time.sleep(60)
         if not eval and not train_when_full:

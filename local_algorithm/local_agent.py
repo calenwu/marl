@@ -220,7 +220,7 @@ class CriticNetwork(nn.Module):
 
 class Local_Agent:
 	
-	def __init__(self, input_dims, num_agents, n_trees, n_actions, agent_id, state_distribution, distr, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+	def __init__(self, input_dims, num_agents, n_trees, n_actions, agent_id, state_distribution, distr, gamma=0.99, alpha=1e-6, gae_lambda=0.95,
 			policy_clip=0.2, batch_size=64, n_epochs=10, layer_size = 64, memory_max_size = 25, train_when_full = False):
 		self.agent_id = agent_id
 		self.state_distr = state_distribution
@@ -239,7 +239,7 @@ class Local_Agent:
 	def observe(self, action, probs, vals, reward, done, trans_ind):
 		belief_state = self.state_distr.get_belief_state()
 		self.memory.store_memory(belief_state, action, probs, vals, reward, done, trans_ind)
-		if self.train_when_full and self.memory.get_training_size() >= 15:
+		if self.train_when_full and self.memory.get_training_size() >= 25:
 			self.learn()
 			self.memory.clear()
 
