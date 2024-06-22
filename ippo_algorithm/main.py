@@ -371,8 +371,8 @@ if __name__ == '__main__':
 		for i in range(10):
 			evaluate(agents, env)
 	else:
-		for i, agent in enumerate(agents):
-			agent.load_models(id=i)
+		# for i, agent in enumerate(agents):
+		# 	agent.load_models(id=i)
 		score_history = train(agents, env, n_games=100000)
 		plot_learning_curve('lumberjacks', [i for i in range(len(score_history))], score_history)
 		for i, agent in enumerate(agents):
