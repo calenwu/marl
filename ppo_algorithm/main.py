@@ -303,9 +303,10 @@ def evaluate(agent: Agent, env):
 if __name__ == '__main__':
 	# env = gym.make('CartPole-v0')
 	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
-	eval = True
-	# env = CatMouse(evaluate=eval)
-	env = Lumberjacks(evaluate=eval)
+	learning_step = 128
+	eval = False
+	env = CatMouse(evaluate=eval)
+	# env = Lumberjacks(evaluate=eval)
 	# env = SimpleSpreadV3(evaluate=eval)
 	agent = Agent(
 		env_name='lumberjacks',
@@ -314,13 +315,13 @@ if __name__ == '__main__':
 		alpha= 0.0003,
 		gamma=0.99,
 		n_epochs=4,
-		batch_size=64
+		batch_size=64,
 	)
 	if eval:
 		agent.load_models()
 		for i in range(10):
 			evaluate(agent, env)
 	else:
-		train(agent, env)
+		train(agent, env, 128)
 		agent.save_models()
 	
