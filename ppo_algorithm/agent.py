@@ -17,7 +17,7 @@ else:
 	print('using cpu')
 
 class PpoMemory:
-	def __init__(self, batch_size: int, memory_size=10000):
+	def __init__(self, batch_size: int):
 		self.states = []
 		self.probs = []
 		self.vals = []
@@ -25,7 +25,6 @@ class PpoMemory:
 		self.rewards = []
 		self.dones = []
 		self.batch_size = batch_size
-		self.memory_size
 
 	def generate_batches(self):
 		n_states = len(self.states)

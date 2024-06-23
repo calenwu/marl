@@ -191,7 +191,6 @@ class CatMouseDiscrete:
 		return obs_n, info, self.trans_state_discrete(self.env.get_global_obs())
 
 	def step(self, a_n):
-		print(self.get_action_discrete(a_n))
 		obs_next_n, r_n, done_n, trunc, info = self.env.step(self.get_action_discrete(a_n))
 		obs_next_n = self.trans_obs_discrete(obs_next_n)
 		r_n = sum(r_n)
@@ -305,8 +304,8 @@ if __name__ == '__main__':
 	# env = gym.make('ma_gym:Lumberjacks-v1', grid_shape=(5, 5), n_agents=2)
 	learning_step = 128
 	eval = False
-	env = CatMouse(evaluate=eval)
-	# env = Lumberjacks(evaluate=eval)
+	# env = CatMouseDiscrete(evaluate=eval)
+	env = Lumberjacks(evaluate=eval)
 	# env = SimpleSpreadV3(evaluate=eval)
 	agent = Agent(
 		env_name='lumberjacks',
@@ -322,6 +321,6 @@ if __name__ == '__main__':
 		for i in range(10):
 			evaluate(agent, env)
 	else:
-		train(agent, env, 128)
+		train(agent, env)
 		agent.save_models()
 	
