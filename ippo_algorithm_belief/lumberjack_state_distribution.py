@@ -83,7 +83,7 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         #print(self.agent_id)
         #print(ag_pos)
         for i in range(self.n_agents+1):
-            x = np.array(list(range(self.grid_size-ag_pos[0]-1,2*self.grid_size-ag_pos[0]-1, 1)))
+            x = np.array(list(range(self.grid_size-ag_pos[0]-1,2*self.grid_size-ag_pos[0]-1, 1))) # sagt an der stelle wohin er kopiert wird.
             y = np.array(list(range(self.grid_size-ag_pos[1]-1,2*self.grid_size-ag_pos[1]-1, 1)))
             tree_state_centralized[i][np.ix_(x,y)] = tree_state[i]
             if i < self.n_agents:
@@ -94,9 +94,17 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         #state_agents = self.agent_pos_distribution.flatten()
         #state_trees = tree_state.flatten()
         
-        state_agents = agent_state_centralized.flatten()
+        start = 4 - 2
+        end = 4 + 3
+        state_agents = agent_state_centralized[abs(1 - self.agent_id)][start:end, start:end].flatten()
         state_trees = tree_state_centralized.flatten()
-        return np.append(self.env_step, np.append(state_agents, state_trees))
+        new_tree_state = np.zeros(tree_state_centralized[0].shape)
+        for tree_strength, idk in enumerate(tree_state_centralized[1:]):
+            new_tree_state += (tree_strength + 1)*idk
+        new_tree_state = new_tree_state[start:end, start:end].flatten()
+
+        return np.append(state_agents, new_tree_state)
+        # return np.append(self.env_step, np.append(state_agents, state_trees))
 
     @staticmethod
     def update_estimation_communication(distributions):

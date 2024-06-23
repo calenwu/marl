@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pettingzoo.mpe import simple_spread_v3
 from agent import Agent
-from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
-from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 from lumberjack_state_distribution import Lumberjacks_State_Distribution
 
 
@@ -54,7 +52,6 @@ def state_to_array_lumber(state):
 	return np.array(state_list)
 
 
-
 class Lumberjacks:
 	def __init__(self, n_agents, n_trees = 8, grid_size = 5, evaluate=False):
 		self.n_trees = n_trees
@@ -63,7 +60,7 @@ class Lumberjacks:
 		self.get_env_step = lambda env: env.get_agent_obs()[0][3]
 		self.get_local_obs = lambda env: get_local_observations_lumber(np.append(np.array([self.get_env_step(env)]), state_to_array_lumber(env.get_global_obs())), n_agents, n_trees)
 		self.state_dim = (2*n_agents+1)*grid_size**2+1#[self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)][0] # 75
-		self.state_dim = (2*n_agents+1)*(2*self.grid_size-1)**2+1
+		self.state_dim = 53 # (2*n_agents+1)*(2*self.grid_size-1)**2+1
 		self.obs_dim = (2*n_agents+1)*grid_size**2+1#self.env.observation_space[0].shape[0]
 		self.action_dim = 5
 		self.n_agents = self.env.n_agents
@@ -82,7 +79,7 @@ class Lumberjacks:
 		for i in range(self.n_agents):
 			self.belief_distr[i].reset()
 			self.belief_distr[i].update_estimation_local_observation(np.array(obs_n[i]))
-			belief_obs.append(self.belief_distr[i].get_belief_state())
+			belief_obs.append(np.concatenate((np.array([i]), obs_n[i][1:3], self.belief_distr[i].get_belief_state())))
 		# obs_n = np.array([self.get_global_obs(), self.get_global_obs()])
 		return np.array(belief_obs), None, np.array(belief_obs)#.flatten()
 
@@ -98,7 +95,7 @@ class Lumberjacks:
 			for i in range(self.n_agents):
 				self.belief_distr[i] = dist
 		for i in range(self.n_agents):
-			belief_obs.append(self.belief_distr[i].get_belief_state())
+			belief_obs.append(np.concatenate((np.array([i]), obs_next_n[i][1:3], self.belief_distr[i].get_belief_state())))
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
@@ -181,6 +178,7 @@ def train(agents: List[Agent], env, n_games=10000, best_score=-100, learning_ste
 			agent.save_models()
 		if episode % print_interval == 0:
 			print(f'episode: {episode} | avg score: {avg_score:.1f} | learning_steps: {learn_iters}')
+	return score_history
 
 
 def evaluate(agents: List[Agent], env):
@@ -234,7 +232,7 @@ if __name__ == '__main__':
 	else:
 		# for i, agent in enumerate(agents):
 		# 	agent.load_models(id=i)
-		score_history = train(agents, env, n_games=100000)
+		score_history = train(agents, env, n_games=20000)
 		plot_learning_curve('lumberjacks', [i for i in range(len(score_history))], score_history)
 		for i, agent in enumerate(agents):
 			agent.save_models(id=i)
