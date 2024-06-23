@@ -6,13 +6,34 @@ import math
 import pygame
 import copy
 
+class RewardNormalizer:
+
+    def __init__(self):
+        self.min_reward = float('inf')
+        self.max_reward = float('-inf')
+
+    def update(self, reward):
+        # Update min and max rewards
+        if reward < self.min_reward:
+            self.min_reward = reward
+        if reward > self.max_reward:
+            self.max_reward = reward
+
+    def normalize(self, reward):
+        # Normalize the reward to [-1, 1]
+        if self.max_reward > self.min_reward:  # Ensure there's a range to normalize
+            normalized_reward = 2 * (reward - self.min_reward) / (self.max_reward - self.min_reward) - 1
+        else:
+            normalized_reward = 0  # If all rewards are the same, normalize to 0
+        return normalized_reward
+
 class CatMouseMAD(gym.Env):
 
     metadata = {'render_modes': ['human'], "render_fps": 4}
 
     def __init__(self, grid_size: int = 5,max_iter: int = None, n_agents: int = 2, n_prey: int = 4,
                 observation_radius: int = 1, communication_radius: int = 1,
-                step_cost: float = -0.1, window_size: int = 250):
+                step_cost: float = -1, window_size: int = 250):
         """
         Initialize the environment.
 
@@ -38,6 +59,7 @@ class CatMouseMAD(gym.Env):
         self.window = None
         self.clock = None
         self.steps = 0
+        self.normalizer = RewardNormalizer()
 
         self.action_space = MultiAgentActionSpace([spaces.Discrete(9)] * self.n_agents)
         obs_size = 2*self.observation_radius + 1
@@ -56,7 +78,11 @@ class CatMouseMAD(gym.Env):
 
         :return: Dictionary containing agent positions and prey positions/caught status.
         """
-        return {"grids":{"agents": self.agents, "prey": self.prey}, "agent_pos": self.agent_pos}
+        agent_grids = np.zeros((self.n_agents, self.grid_size,self.grid_size))
+        for i,pos in enumerate(self.agent_pos):
+            agent_grids[i][pos[0]][pos[1]] = 1
+        return {"grids": {"agents": agent_grids, "prey": self.prey}}
+        # return {"grids":{"agents": self.agents, "prey": self.prey}, "agent_pos": self.agent_pos}
 
     def _get_obs(self):
         """
@@ -121,7 +147,9 @@ class CatMouseMAD(gym.Env):
         return self._get_obs()
 
     def step(self, action: list) -> tuple:
-        assert len(action) == self.n_agents, "action length should be number of agents"
+        if len(action.shape) == 1:
+            action = np.expand_dims(action, axis=0)
+        assert len(action) == self.n_agents, "action length {} should be number of agents {}".format(len(action), self.n_agents)
 
         next_state = None
         reward = []
@@ -141,9 +169,6 @@ class CatMouseMAD(gym.Env):
         terminated = not np.any(self.prey)
 
         truncated = False
-
-        # if terminated:
-        #     next_state = None
 
         self.steps =+ 1
         if self.max_iter:
@@ -196,7 +221,11 @@ class CatMouseMAD(gym.Env):
         """
         reward = np.full((self.n_agents,),self.step_cost)
         reward += caught * 10
-        reward -= collision
+        # reward -= collision
+        # for r in reward:
+        #     self.normalizer.update(r) 
+        # normalized_reward = [self.normalizer.normalize(r) for r in reward]
+
         return reward
 
     def render(self):
