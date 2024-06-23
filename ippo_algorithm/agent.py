@@ -118,7 +118,7 @@ class CriticNetwork(nn.Module):
 class Agent:
 	# N = horizon, steps we take before we perform an update
 	def __init__(self, env_name: str, n_actions: int, input_dims: int, gamma=0.99, alpha=0.0001, gae_lambda=0.95,
-			policy_clip=0.2, batch_size=64, n_epochs=10):
+			policy_clip=0.2, batch_size=128, n_epochs=4):
 		self.env_name = env_name
 		self.plotter_x = []
 		self.plotter_y = []

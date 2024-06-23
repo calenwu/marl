@@ -6,7 +6,7 @@ from torch.distributions import Normal, Bernoulli, MultivariateNormal
 
 class Lumberjacks_State_Distribution(torch.distributions.distribution.Distribution):
 
-    def __init__(self, n_agents, n_trees, grid_size, agent_id):
+    def __init__(self, n_agents, n_trees, grid_size, agent_id, belief_radius = 2, obs_rad = 1):
         super().__init__()
         self.agent_id = agent_id
         self.n_agents = n_agents
@@ -16,6 +16,8 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         self.observed_fields = np.zeros((grid_size, grid_size))
         self.agent_pos_distribution = np.ones((n_agents, grid_size, grid_size))/((grid_size**2)*n_agents)
         self.observed_trees = np.zeros((n_agents+1, grid_size, grid_size))
+        self.belief_radius = belief_radius
+        self.obs_rad = obs_rad
     
     def reset(self):
         self.env_step = 0
@@ -25,17 +27,15 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
 
     def get_view(self, agent_pos):
         view = np.ones((self.grid_size, self.grid_size))
-        rad = 1
-        for i in [-1, 0, 1]:
-            for j in [-1, 0, 1]:
+        its = [i for i in range(self.obs_rad+1)]+[-i for i in range(1, self.obs_rad+1)]
+        its.sort()
+        for i in its:
+            for j in its:
                 if agent_pos[0]+i >= 0 and agent_pos[0]+i < self.grid_size and agent_pos[1]+j >= 0 and agent_pos[1]+j < self.grid_size:
                     view[int(agent_pos[0])+i][int(agent_pos[1])+j] = 0
-        #view = np.zeros((self.grid_size, self.grid_size))
         return view
 
     def update_estimation_local_observation(self, loc_obs):
-        #print(loc_obs)
-        #time.sleep(0.5)
         self.env_step = loc_obs[0]
         agents = loc_obs[1:self.n_agents*2+1].astype('int')
         trees = loc_obs[self.n_agents*2+1:].astype('int')
@@ -74,35 +74,35 @@ class Lumberjacks_State_Distribution(torch.distributions.distribution.Distributi
         for i in range(self.n_agents+1):
             tree_state[i] = tree_state[i]*(1-self.observed_fields)
             tree_state[i] += self.observed_trees[i]
-        #print(tree_state)
-        # centralize
         tree_state_centralized = np.zeros((self.n_agents+1, 2*self.grid_size-1, 2*self.grid_size-1))
         agent_state_centralized = np.zeros((self.n_agents, 2*self.grid_size-1, 2*self.grid_size-1))
         ag_pos = np.where(self.agent_pos_distribution[self.agent_id] == 1)
         ag_pos = [ag_pos[0][0], ag_pos[1][0]]
-        #print(self.agent_id)
-        #print(ag_pos)
         for i in range(self.n_agents+1):
             x = np.array(list(range(self.grid_size-ag_pos[0]-1,2*self.grid_size-ag_pos[0]-1, 1))) # sagt an der stelle wohin er kopiert wird.
             y = np.array(list(range(self.grid_size-ag_pos[1]-1,2*self.grid_size-ag_pos[1]-1, 1)))
             tree_state_centralized[i][np.ix_(x,y)] = tree_state[i]
             if i < self.n_agents:
                 agent_state_centralized[i][np.ix_(x,y)] = self.agent_pos_distribution[i]
-        #tree_state_centralized[self.agent_id][np.ix_(self.grid_size-ag_pos[0]:2*self.grid_size-ag_pos[0], self.grid_size-ag_pos[1]:2*self.grid_size-ag_pos[1])] = tree_state[self.agent_id]
-        #print(tree_state_centralized)
-        #time.sleep(5)
-        #state_agents = self.agent_pos_distribution.flatten()
-        #state_trees = tree_state.flatten()
         
-        start = 4 - 2
-        end = 4 + 3
-        state_agents = agent_state_centralized[abs(1 - self.agent_id)][start:end, start:end].flatten()
-        state_trees = tree_state_centralized.flatten()
-        new_tree_state = np.zeros(tree_state_centralized[0].shape)
-        for tree_strength, idk in enumerate(tree_state_centralized[1:]):
-            new_tree_state += (tree_strength + 1)*idk
-        new_tree_state = new_tree_state[start:end, start:end].flatten()
+        start = self.grid_size-1-self.belief_radius
+        end = self.grid_size+self.belief_radius #(end exclusive)
 
+        #start = 4 - 2
+        #end = 4 + 3
+        
+        #state_trees = tree_state_centralized.flatten()
+
+        # new_tree_state = np.zeros(tree_state_centralized[0].shape)
+        # for tree_strength, idk in enumerate(tree_state_centralized[1:]):
+        #     new_tree_state += (tree_strength + 1)*idk
+
+        #state_agents = agent_state_centralized[abs(1 - self.agent_id)][start:end, start:end].flatten()
+        #new_tree_state = new_tree_state[start:end, start:end].flatten()
+        #print(np.delete(agent_state_centralized, self.agent_id, axis=0))
+        #new_tree_state = np.transpose(tree_state_centralized[1:,start:end, start:end], (2,1,0)).flatten()
+        state_agents = np.delete(agent_state_centralized, self.agent_id, axis=0)[:, start:end, start:end].flatten()
+        new_tree_state = tree_state_centralized[1:,start:end, start:end].flatten()
         return np.append(state_agents, new_tree_state)
         # return np.append(self.env_step, np.append(state_agents, state_trees))
 
