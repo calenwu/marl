@@ -1,0 +1,33 @@
+Running on host: studgpu-node01.inf.ethz.ch
+In directory: /cluster/courses/3dv/data/team-25/decentralized_marl/ppo_algorithm
+Starting on: Mon Jun 24 18:10:03 CEST 2024
+SLURM_JOB_ID: 22772
+using cuda
+episode: 0 | avg score: -18.0 | learning_steps: 0
+episode: 100 | avg score: -43.9 | learning_steps: 38
+episode: 200 | avg score: -42.6 | learning_steps: 76
+episode: 300 | avg score: -40.3 | learning_steps: 114
+episode: 400 | avg score: -38.6 | learning_steps: 151
+episode: 500 | avg score: -36.4 | learning_steps: 187
+episode: 600 | avg score: -37.2 | learning_steps: 224
+episode: 700 | avg score: -44.7 | learning_steps: 263
+episode: 800 | avg score: -35.9 | learning_steps: 300
+episode: 900 | avg score: -40.0 | learning_steps: 337
+episode: 1000 | avg score: -42.0 | learning_steps: 375
+episode: 1100 | avg score: -38.0 | learning_steps: 412
+episode: 1200 | avg score: -38.7 | learning_steps: 449
+episode: 1300 | avg score: -44.5 | learning_steps: 486
+episode: 1400 | avg score: -36.8 | learning_steps: 523
+episode: 1500 | avg score: -37.8 | learning_steps: 561
+episode: 1600 | avg score: -35.2 | learning_steps: 597
+episode: 1700 | avg score: -30.5 | learning_steps: 632
+episode: 1800 | avg score: -30.0 | learning_steps: 667
+episode: 1900 | avg score: -30.3 | learning_steps: 703
+episode: 2000 | avg score: -34.6 | learning_steps: 739
+episode: 2100 | avg score: -34.7 | learning_steps: 776
+episode: 2200 | avg score: -29.8 | learning_steps: 811
+episode: 2300 | avg score: -31.3 | learning_steps: 847
+episode: 2400 | avg score: -30.9 | learning_steps: 882
+episode: 2500 | avg score: -32.2 | learning_steps: 917
+episode: 2600 | avg score: -33.9 | learning_steps: 953
+episode: 2700 | avg score: -29.3 | learning_steps: 988

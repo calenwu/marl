@@ -78,11 +78,15 @@ class CatMouseMAD(gym.Env):
 
         :return: Dictionary containing agent positions and prey positions/caught status.
         """
+
+        # one grid per agent (one-hot) and prey grid as global obs
         agent_grids = np.zeros((self.n_agents, self.grid_size,self.grid_size))
         for i,pos in enumerate(self.agent_pos):
             agent_grids[i][pos[0]][pos[1]] = 1
-        return {"grids": {"agents": agent_grids, "prey": self.prey}}
-        # return {"grids":{"agents": self.agents, "prey": self.prey}, "agent_pos": self.agent_pos}
+        return {"grids": {"agents": agent_grids, "prey": self.prey}, "agent_pos": self.agent_pos}
+    
+        # env state as global obs
+        return {"grids":{"agents": self.agents, "prey": self.prey}, "agent_pos": self.agent_pos}
 
     def _get_obs(self):
         """
@@ -197,7 +201,16 @@ class CatMouseMAD(gym.Env):
         """
         Moves prey's positions according to their specified behavior
         """
-        pass
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                if self.prey[i][j] > 0:
+                    for ring in range(1, self.grid_size): # scan rings around prey
+                        for x in range(-ring, ring+1):
+                            for y in range(-ring, ring+1):
+                                pass # check if agent, then move opposite direction (iterate through all prey) then break
+
+        
+            
 
     def _check_caught(self):
         """

@@ -82,7 +82,7 @@ class CatMouseMultiAgent:
 		obs_next_n, r_n, done_n, trunc, info = self.env.step(get_action(a_n))
 		obs_next_n = self.trans_obs(obs_next_n)
 		if not self.ma:
-			r_n = max(r_n)
+			r_n = sum(r_n)
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
@@ -133,17 +133,17 @@ class CatMouseDiscrete:
 		ret = []
 		agent_grid = state["grids"]["agents"].flatten()
 		prey_grid = state["grids"]["prey"].flatten()
-		# agent_pos = state["agent_pos"].flatten() # if we have 1 grid per agent then dont need agent_pos anymore
+		agent_pos = state["agent_pos"].flatten() # if we have 1 grid per agent then dont need agent_pos anymore
 		ret.append(agent_grid)
 		ret.append(prey_grid)
-		# ret.append(agent_pos)
+		ret.append(agent_pos)
 		ret = np.concatenate(ret)
 		return ret
 
 	def __init__(self, evaluate=False, n_agents=2, n_prey=4, grid_size=5, observation_radius = 1, ma = True):
-		self.env = CatMouseMAD(observation_radius=observation_radius, n_agents=n_agents, n_prey=n_agents, grid_size=grid_size)
+		self.env = CatMouseMAD(observation_radius=observation_radius, n_agents=n_agents, n_prey=n_prey, grid_size=grid_size)
 		# self.state_dim = (grid_size ** 2) * 2 + n_agents * 2 # global state, 2 grids (agents, prey) + agent positions
-		self.state_dim = (grid_size ** 2) * (n_agents + 1)
+		self.state_dim = (grid_size ** 2) * (n_agents + 1) + n_agents * 2
 		self.obs_dim = ((observation_radius * 2 + 1) ** 2) * 2 +  3 # local observation, 2 local grids + cur agent position + id
 		self.n_actions_per_agent = 9
 		self.ma = ma
@@ -165,7 +165,7 @@ class CatMouseDiscrete:
 		obs_next_n, r_n, done_n, trunc, info = self.env.step(self.get_action_discrete(a_n))
 		obs_next_n = self.trans_obs_discrete(obs_next_n)
 		if not self.ma:
-			r_n = max(r_n)
+			r_n = sum(r_n)
 
 		if self.evaluate:
 			time.sleep(0.1)
@@ -229,9 +229,9 @@ class CatMouseGlobal:
 
 class Lumberjacks:
 	def __init__(self, evaluate=False):
-		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=1) #n_trees=8,
+		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=2) #n_trees=8,
 		self.state_dim = np.sum([self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)])
-		self.obs_dim = self.env.observation_space[0].shape[0]
+		self.obs_dim = self.env.observation_space[1].shape[0]
 		self.action_dim = 5 * self.env.n_agents
 		self.n_actions_per_agent = 5
 		self.n_agents = self.env.n_agents
@@ -323,11 +323,11 @@ def evaluate(agent: Agent, env):
 if __name__ == '__main__':
 	
 	eval = False
-	n_agents = 1
-	n_prey = 3
-	grid_size = 3
-	# env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size)
-	env = Lumberjacks()
+	n_agents = 2
+	n_prey = 8
+	grid_size = 5
+	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size)
+	# env = Lumberjacks()
 	n_games = 20000
 	agent = Agent(
 		env_name='catmouse',
@@ -336,14 +336,14 @@ if __name__ == '__main__':
 		input_dims=env.state_dim,
 		alpha= 0.0003,
 		gamma=0.99,
-		n_epochs=5,
+		n_epochs=4,
 		batch_size=128,
 		n_agents = n_agents,
-		hidden_dim = 256
+		hidden_dim = 128
 	)
 	if eval:
 		agent.load_models()
-		for i in range(10):
+		for _ in range(10):
 			evaluate(agent, env)
 	else:
 		train(agent, env, n_games=n_games)

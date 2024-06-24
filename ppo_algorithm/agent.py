@@ -81,8 +81,8 @@ class ActorNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(hidden_dim, hidden_dim),
 			nn.Tanh(),
-			nn.Linear(hidden_dim, hidden_dim),
-			nn.Tanh(),
+			# nn.Linear(hidden_dim, hidden_dim),
+			# nn.Tanh(),
 			nn.Linear(hidden_dim, n_actions)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -123,8 +123,8 @@ class CriticNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(hidden_dim, hidden_dim),
 			nn.Tanh(),
-			nn.Linear(hidden_dim, hidden_dim),
-			nn.Tanh(),
+			# nn.Linear(hidden_dim, hidden_dim),
+			# nn.Tanh(),
 			nn.Linear(hidden_dim, 1)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -223,17 +223,30 @@ class Agent:
 				critic_values = T.squeeze(critic_values)
 
 				new_probs = []
-				for i in range(self.batch_size):
-					cur_batch = []
-					for j in range(self.n_agents):
-						cur_batch.append(dists[j].log_prob(actions[i,j])[i])
-					new_probs.append(cur_batch)
+				# for i in range(self.batch_size):
+				# 	cur_batch = []
+				# 	for j in range(self.n_agents):
+				# 		cur_batch.append(dists[j].log_prob(actions[i,j])[i])
+				# 	new_probs.append(cur_batch)
 
-				new_probs = T.tensor(new_probs).to(self.actor.device)
-				prob_ratio = new_probs.exp() / old_probs.exp()
-				prob_ratio_prod = prob_ratio[:,0]
-				for i in range(1, prob_ratio.shape[-1]):
-					prob_ratio_prod *= prob_ratio[:,i]
+				for i, dist in enumerate(dists):
+					new_probs.append(dist.log_prob(actions[:, i]))
+				new_probs = T.stack(new_probs, dim=1)
+				
+				# old = old_probs[:,0]
+				# new_probs = T.tensor(new_probs).to(self.actor.device)
+				# new = new_probs[:,0]
+				# for i in range(1, old_probs.shape[-1]):
+				# 	old += old_probs[:,i]
+				# 	new += new_probs[:,i]
+
+				prob_ratio_prod = (new_probs.exp() / old_probs.exp()).prod(dim=1)
+
+				# new_probs = T.tensor(new_probs).to(self.actor.device)
+				# prob_ratio = new_probs.exp() / old_probs.exp()
+				# prob_ratio_prod = prob_ratio[:,0]
+				# for i in range(1, prob_ratio.shape[-1]):
+				# 	prob_ratio_prod *= prob_ratio[:,i]
 
 				weighted_probs = advantages[batch] * prob_ratio_prod
 				weighted_clipped_probs = T.clamp(prob_ratio_prod, 1 - self.policy_clip, 1 + self.policy_clip) * advantages[batch]
@@ -248,8 +261,13 @@ class Agent:
 				self.actor.optimizer.zero_grad()
 				self.critic.optimizer.zero_grad()
 				total_loss.mean().backward()
+
+				# print('before', self.actor.state_dict()['actor.0.weight'])
 				self.actor.optimizer.step()
 				self.critic.optimizer.step()
+
+				# print('after', self.actor.state_dict()['actor.0.weight'])
+				
 
 				# if len(self.plotter_x) > 10000:
 				# 	# print a plot and save it with the self.plotter_x and self.plotter_y
