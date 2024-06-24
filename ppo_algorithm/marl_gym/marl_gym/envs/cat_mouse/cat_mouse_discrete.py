@@ -78,6 +78,19 @@ class CatMouseMAD(gym.Env):
 
         :return: Dictionary containing agent positions and prey positions/caught status.
         """
+        # lumberjack state
+        observation_range = 1
+        agent_grid = np.zeros((self.n_agents, 2 * observation_range + 1, 2 * observation_range + 1))
+        prey_grid = np.zeros((self.n_agents, 2 * observation_range + 1, 2 * observation_range + 1))
+        for agent_id in range(self.n_agents):
+            cur_pos = self.agent_pos[agent_id]
+            for i in range(-observation_range, observation_range+1):
+                for j in range(-observation_range, observation_range+1):
+                    if 0 <= cur_pos[0] + i < self.grid_size and 0 <= cur_pos[1] + j < self.grid_size:
+                        agent_grid[agent_id, i+observation_range, j+observation_range] = self.agents[cur_pos[0] + i, cur_pos[1] + j]
+                        prey_grid[agent_id, i+observation_range, j+observation_range] = self.prey[cur_pos[0] + i, cur_pos[1] + j]
+
+        return {"grids": {"agents": agent_grid, "prey": prey_grid}, "agent_pos": self.agent_pos}
 
         # one grid per agent (one-hot) and prey grid as global obs
         agent_grids = np.zeros((self.n_agents, self.grid_size,self.grid_size))

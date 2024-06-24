@@ -1,0 +1,5 @@
+Running on host: studgpu-node01.inf.ethz.ch
+In directory: /cluster/courses/3dv/data/team-25/decentralized_marl/ppo_algorithm
+Starting on: Mon Jun 24 19:34:08 CEST 2024
+SLURM_JOB_ID: 22781
+using cuda
