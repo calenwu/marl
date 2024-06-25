@@ -5,6 +5,7 @@ import numpy as np
 import math
 import pygame
 import copy
+import random
 
 class RewardNormalizer:
 
@@ -238,27 +239,40 @@ class CatMouseMAD(gym.Env):
             for j in range(self.grid_size):
                 if self.prey[i][j] > 0:
                     found = False
-                    for ring in range(1, self.grid_size): # scan rings around prey
-                        for x in range(-ring, ring+1):
-                            for y in range(-ring, ring+1):
-                                if x==0 or y == 0:
-                                    continue
-                                if 0 <= i + x < self.grid_size and 0 <= j + y < self.grid_size:
-                                    if self.agents[i+x][j+y] > 0:
-                                        move_x = int(x / abs(x))
-                                        move_y = int(y / abs(y))
-                                        if 0 <= i - move_x < self.grid_size and 0 <= j - move_y < self.grid_size:
-                                            prey_new[i-move_x][j-move_y] += self.prey[i][j]
-                                        else:
+                    for x in range(-1,2):
+                        for y in range(-1,2):
+                            if x == 0 or y == 0:
+                                continue
+                            if 0 <= i + x < self.grid_size and 0 <= j + y < self.grid_size:
+                                if self.agents[i+x][j+y] > 0:
+                                    # run away
+                                    if 0 <= i - x < self.grid_size and 0 <= j - y < self.grid_size:
+                                        prey_new[i-x][j-y] += self.prey[i][j]
+                                    else:
+                                        if (i - x >= self.grid_size or i - x < 0) and (j-y >= self.grid_size or j-y < 0):
                                             prey_new[i][j] += self.prey[i][j]
-                                        
-                                        found = True
-                                        break
+                                        elif i - x >= self.grid_size or i - x < 0:
+                                            prey_new[i][j-y] += self.prey[i][j]
+                                        elif j - y >= self.grid_size or j - y < 0:
+                                            prey_new[i-x][j] += self.prey[i][j]
+
+                                    found = True
+                                    break
                             if found:
                                 break
                         if found:
                             break
+                    # if not in vicinity of cat, either random movement or stays still
+                    if not found:
+                        sample = random.randint(0,8)
+                        dir = ACTION_LIST[sample]
+                        if 0 <= i + dir[0] < self.grid_size and 0 <= j + dir[1] < self.grid_size:
+                            prey_new[i+dir[0]][j+dir[1]] += self.prey[i][j]
+                        else:
+                            prey_new[i][j] += self.prey[i][j]
+ 
         self.prey = prey_new
+        
 
     def _check_caught(self):
         """
