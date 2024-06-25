@@ -87,19 +87,37 @@ class CatMouseMAD(gym.Env):
             for i in range(-observation_range, observation_range+1):
                 for j in range(-observation_range, observation_range+1):
                     if 0 <= cur_pos[0] + i < self.grid_size and 0 <= cur_pos[1] + j < self.grid_size:
-                        agent_grid[agent_id, i+observation_range, j+observation_range] = self.agents[cur_pos[0] + i, cur_pos[1] + j]
-                        prey_grid[agent_id, i+observation_range, j+observation_range] = self.prey[cur_pos[0] + i, cur_pos[1] + j]
+                        agent_grid[agent_id, i+observation_range, j+observation_range] = self.agents[cur_pos[0] + i, cur_pos[1] + j] / self.n_agents
+                        prey_grid[agent_id, i+observation_range, j+observation_range] = self.prey[cur_pos[0] + i, cur_pos[1] + j] / self.n_agents
 
-        return {"grids": {"agents": agent_grid, "prey": prey_grid}, "agent_pos": self.agent_pos}
+        agent_pos_norm = np.copy(self.agent_pos)
+        for i in range(self.n_agents):
+            agent_pos_norm[i][0] /= self.grid_size
+            agent_pos_norm[i][1] /= self.grid_size
+
+        return {"grids": {"agents": agent_grid, "prey": prey_grid}, "agent_pos": agent_pos_norm}
 
         # one grid per agent (one-hot) and prey grid as global obs
-        agent_grids = np.zeros((self.n_agents, self.grid_size,self.grid_size))
-        for i,pos in enumerate(self.agent_pos):
-            agent_grids[i][pos[0]][pos[1]] = 1
-        return {"grids": {"agents": agent_grids, "prey": self.prey}, "agent_pos": self.agent_pos}
+        # agent_grids = np.zeros((self.n_agents, self.grid_size,self.grid_size))
+        # for i,pos in enumerate(self.agent_pos):
+        #     agent_grids[i][pos[0]][pos[1]] = 1
+        # return {"grids": {"agents": agent_grids, "prey": self.prey}, "agent_pos": self.agent_pos}
     
         # env state as global obs
-        return {"grids":{"agents": self.agents, "prey": self.prey}, "agent_pos": self.agent_pos}
+        agents_norm = np.copy(self.agents)
+        prey_norm = np.copy(self.prey)
+        agent_pos_norm = np.copy(self.agent_pos)
+
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                agents_norm[i][j] /= self.n_agents
+                prey_norm[i][j] /= self.n_agents
+
+        for i in range(self.n_agents):
+            agent_pos_norm[i][0] /= self.grid_size
+            agent_pos_norm[i][1] /= self.grid_size
+                
+        return {"grids":{"agents": agents_norm, "prey": prey_norm}, "agent_pos": agent_pos_norm}
 
     def _get_obs(self):
         """
@@ -214,16 +232,30 @@ class CatMouseMAD(gym.Env):
         """
         Moves prey's positions according to their specified behavior
         """
+        # prey moves away from agents
+        prey_new = np.zeros((self.grid_size, self.grid_size))
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 if self.prey[i][j] > 0:
+                    found = False
                     for ring in range(1, self.grid_size): # scan rings around prey
                         for x in range(-ring, ring+1):
                             for y in range(-ring, ring+1):
-                                pass # check if agent, then move opposite direction (iterate through all prey) then break
-
-        
-            
+                                if x==0 or y == 0:
+                                    continue
+                                if 0 <= i + x < self.grid_size and 0 <= j + y < self.grid_size:
+                                    if self.agents[i+x][j+y] > 0:
+                                        move_x = int(x / abs(x))
+                                        move_y = int(y / abs(y))
+                                        if 0 <= i - move_x < self.grid_size and 0 <= j - move_y < self.grid_size:
+                                            prey_new[i-move_x][j-move_y] += self.prey[i][j]
+                                            found = True
+                                            break
+                            if found:
+                                break
+                        if found:
+                            break
+        self.prey = prey_new
 
     def _check_caught(self):
         """
@@ -233,11 +265,11 @@ class CatMouseMAD(gym.Env):
         for i in range(self.grid_size):
             for j  in range(self.grid_size):
                 if self.agents[i][j] > 0 and self.prey[i][j] > 0:
-                    if self.agents[i][j] >= self.prey[i][j]:
-                        for a,p in enumerate(self.agent_pos):
-                            if p[0] == i and p[1] == j:
-                                caught[a] += 1
-                        self.prey[i][j] = 0
+                    # if self.agents[i][j] >= self.prey[i][j]:
+                    for a,p in enumerate(self.agent_pos):
+                        if p[0] == i and p[1] == j:
+                            caught[a] += self.prey[i][j]
+                    self.prey[i][j] = 0
         return caught
     
     def _calc_reward(self, caught, collision):
@@ -246,7 +278,7 @@ class CatMouseMAD(gym.Env):
         :return: reward score
         """
         reward = np.full((self.n_agents,),self.step_cost)
-        reward += caught * 10
+        reward += caught * 10 * self.n_agents
         # reward -= collision
         # for r in reward:
         #     self.normalizer.update(r) 

@@ -143,8 +143,8 @@ class CatMouseDiscrete:
 	def __init__(self, evaluate=False, n_agents=2, n_prey=4, grid_size=5, observation_radius = 1, ma = True):
 		self.env = CatMouseMAD(observation_radius=observation_radius, n_agents=n_agents, n_prey=n_prey, grid_size=grid_size)
 		# self.state_dim = (grid_size ** 2) * 2 + n_agents * 2 # global state, 2 grids (agents, prey) + agent positions
-		# self.state_dim = (grid_size ** 2) * (n_agents + 1) + n_agents * 2
-		self.state_dim = n_agents * (9 * 2) + n_agents * 2
+		# self.state_dim = (grid_size ** 2) * (n_agents + 1) + n_agents * 2 # global state, 1 grid per agent + grid for trees + agent positions
+		self.state_dim = n_agents * (9 * 2) + n_agents * 2 # local lumberjack state
 		self.obs_dim = ((observation_radius * 2 + 1) ** 2) * 2 +  3 # local observation, 2 local grids + cur agent position + id
 		self.n_actions_per_agent = 9
 		self.ma = ma
@@ -229,9 +229,22 @@ class CatMouseGlobal:
 		self.env.close()
 
 class Lumberjacks:
+
+	@staticmethod
+	def state_to_array_lumber_2(state, n_agents, grid_size):
+		agents = np.zeros((n_agents, grid_size, grid_size))
+		trees = np.zeros((grid_size, grid_size))
+		num = 0
+		for agent in state[0]:
+			agents[num][agent[0]-1][agent[1]-1] = 1
+			num += 1
+		for tree in state[1]:
+			trees[tree[0][0]-1][tree[0][1]-1] = tree[1]
+		return np.append(agents.flatten(), trees.flatten())	
+
 	def __init__(self, evaluate=False):
-		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=2) #n_trees=8,
-		self.state_dim = np.sum([self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)])
+		self.env = gym.make('ma_gym:Lumberjacks-v0', grid_shape=(5, 5), n_agents=2, n_trees=8) #n_trees=8,
+		self.state_dim = (n_agents+1)* (grid_size ** 2) # np.sum([self.env.observation_space[agent].shape[0] for agent in range(self.env.n_agents)])
 		self.obs_dim = self.env.observation_space[1].shape[0]
 		self.action_dim = 5 * self.env.n_agents
 		self.n_actions_per_agent = 5
@@ -243,7 +256,7 @@ class Lumberjacks:
 	def reset(self):
 		obs_n = self.env.reset()
 		obs_n = np.array(obs_n)
-		return obs_n, None, obs_n.flatten()
+		return obs_n, None, self.state_to_array_lumber_2(self.env.get_global_obs(), self.n_agents, 5) # obs_n.flatten()
 
 	def step(self, a_n):
 		obs_next_n, r_n, done_n, info = self.env.step(a_n)
@@ -253,7 +266,7 @@ class Lumberjacks:
 		if self.evaluate:
 			time.sleep(0.1)
 			self.env.render()
-		return obs_next_n, r_n, done_n, None, info, obs_next_n.flatten()
+		return obs_next_n, r_n, done_n, None, info, self.state_to_array_lumber_2(self.env.get_global_obs(), self.n_agents, 5) # obs_next_n.flatten()
 
 	def render(self):
 		self.env.render()
@@ -293,9 +306,12 @@ def train(agent: Agent, env, n_games=10000, best_score=-100, learning_step=128):
 		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
 			_, reward, done, _, _, state_ = env.step(action)
+			if done:
+				print(n_steps)
 			n_steps += 1
 			score += reward
-			agent.remember(state, action, prob, val, reward, done)
+			print(reward)
+			agent.remember(state, action, prob, val, reward/100.0, done)
 			if n_steps % learning_step == 0:
 				agent.learn()
 				learn_iters += 1
@@ -325,7 +341,7 @@ if __name__ == '__main__':
 	
 	eval = False
 	n_agents = 2
-	n_prey = 8
+	n_prey = 12
 	grid_size = 5
 	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size)
 	# env = Lumberjacks()
