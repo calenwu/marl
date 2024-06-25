@@ -8,15 +8,15 @@ from torch.utils.data import DataLoader, Dataset
 from torch.distributions import Categorical
 import matplotlib.pyplot as plt
 
-device = T.device('cpu')
-# if T.cuda.is_available():
-# 	device = T.device('cuda')
-# 	print('using cuda')
-# elif T.backends.mps.is_available():
-# 	device = T.device('mps')
-# 	print('using mps')
-# else:
-	# print('using cpu')
+if T.cuda.is_available():
+	device = T.device('cuda')
+	print('using cuda')
+elif T.backends.mps.is_available():
+	device = T.device('mps')
+	print('using mps')
+else:
+	device = T.device('cpu')
+	print('using cpu')
 
 class PpoMemory(Dataset):
 	def __init__(self, batch_size):
