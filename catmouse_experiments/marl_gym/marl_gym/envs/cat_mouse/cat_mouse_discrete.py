@@ -189,12 +189,12 @@ class CatMouseMAD(gym.Env):
         next_state = None
         reward = []
         terminated = False
-
-        # move each agent according to action array
-        collision = self._move_agents(action)
+        
         # assume uniform random movement of mouse rn, move each mouse
         self._move_prey()
-
+        # move each agent according to action array
+        collision = self._move_agents(action)
+        
         caught = self._check_caught()
 
         next_state, info = self._get_obs()
@@ -249,8 +249,11 @@ class CatMouseMAD(gym.Env):
                                         move_y = int(y / abs(y))
                                         if 0 <= i - move_x < self.grid_size and 0 <= j - move_y < self.grid_size:
                                             prey_new[i-move_x][j-move_y] += self.prey[i][j]
-                                            found = True
-                                            break
+                                        else:
+                                            prey_new[i][j] += self.prey[i][j]
+                                        
+                                        found = True
+                                        break
                             if found:
                                 break
                         if found:
