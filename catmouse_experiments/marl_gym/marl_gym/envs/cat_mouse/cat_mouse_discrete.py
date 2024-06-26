@@ -249,12 +249,25 @@ class CatMouseMAD(gym.Env):
                                     if 0 <= i - x < self.grid_size and 0 <= j - y < self.grid_size:
                                         prey_new[i-x][j-y] += self.prey[i][j]
                                     else:
+                                        # corner case
                                         if (i - x >= self.grid_size or i - x < 0) and (j-y >= self.grid_size or j-y < 0):
                                             prey_new[i][j] += self.prey[i][j]
                                         elif i - x >= self.grid_size or i - x < 0:
-                                            prey_new[i][j-y] += self.prey[i][j]
+                                            if y == 0:
+                                                if 0 <= j - 1 < self.grid_size:
+                                                    prey_new[i][j-1] += self.prey[i][j]
+                                                else:
+                                                    prey_new[i][j+1] += self.prey[i][j]
+                                            else:
+                                                prey_new[i][j-y] += self.prey[i][j]
                                         elif j - y >= self.grid_size or j - y < 0:
-                                            prey_new[i-x][j] += self.prey[i][j]
+                                            if x == 0:
+                                                if 0 <= i - 1 < self.grid_size:
+                                                    prey_new[i-1][j] += self.prey[i-1][j]
+                                                else:
+                                                    prey_new[i+1][j] += self.prey[i+1][j]
+                                            else:
+                                                prey_new[i-x][j] += self.prey[i][j]
 
                                     found = True
                                     break
@@ -270,7 +283,6 @@ class CatMouseMAD(gym.Env):
                             prey_new[i+dir[0]][j+dir[1]] += self.prey[i][j]
                         else:
                             prey_new[i][j] += self.prey[i][j]
- 
         self.prey = prey_new
         
 
