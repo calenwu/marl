@@ -234,6 +234,11 @@ class CatMouseMAD(gym.Env):
         Moves prey's positions according to their specified behavior
         """
         # prey moves away from agents
+        # self.agents = np.zeros((self.grid_size, self.grid_size))
+        # self.agents[1][1] = 1
+        # self.prey = np.zeros((self.grid_size, self.grid_size))
+        # self.prey[0][1] = 1
+
         prey_new = np.zeros((self.grid_size, self.grid_size))
         for i in range(self.grid_size):
             for j in range(self.grid_size):
@@ -241,7 +246,7 @@ class CatMouseMAD(gym.Env):
                     found = False
                     for x in range(-1,2):
                         for y in range(-1,2):
-                            if x == 0 or y == 0:
+                            if x == 0 and y == 0:
                                 continue
                             if 0 <= i + x < self.grid_size and 0 <= j + y < self.grid_size:
                                 if self.agents[i+x][j+y] > 0:
@@ -283,6 +288,8 @@ class CatMouseMAD(gym.Env):
                             prey_new[i+dir[0]][j+dir[1]] += self.prey[i][j]
                         else:
                             prey_new[i][j] += self.prey[i][j]
+        # print(self.prey)
+        # print(prey_new)
         self.prey = prey_new
         
 
