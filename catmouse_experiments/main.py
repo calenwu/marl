@@ -378,11 +378,12 @@ if __name__ == '__main__':
 	
 	eval = False
 	n_agents = 2
-	n_prey = 12
-	grid_size = 5
-	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size)
+	n_prey = 20
+	grid_size = 7
+	observation_radius = 2
+	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size, observation_radius=observation_radius)
 	# env = Lumberjacks()
-	n_games = 20000
+	n_games = 30000
 	agent = Agent(
 		env_name='catmouse',
 		n_actions=env.action_dim,
@@ -393,7 +394,7 @@ if __name__ == '__main__':
 		n_epochs=4,
 		batch_size=128,
 		n_agents = n_agents,
-		hidden_dim = 128
+		hidden_dim = 256
 	)
 	if eval:
 		agent.load_models()

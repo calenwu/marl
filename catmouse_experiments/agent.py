@@ -82,8 +82,8 @@ class ActorNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(hidden_dim, hidden_dim),
 			nn.Tanh(),
-			# nn.Linear(hidden_dim, hidden_dim),
-			# nn.Tanh(),
+			nn.Linear(hidden_dim, hidden_dim),
+			nn.Tanh(),
 			nn.Linear(hidden_dim, n_actions)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
@@ -124,8 +124,8 @@ class CriticNetwork(nn.Module):
 			nn.Tanh(),
 			nn.Linear(hidden_dim, hidden_dim),
 			nn.Tanh(),
-			# nn.Linear(hidden_dim, hidden_dim),
-			# nn.Tanh(),
+			nn.Linear(hidden_dim, hidden_dim),
+			nn.Tanh(),
 			nn.Linear(hidden_dim, 1)
 		)
 		self.optimizer = optim.Adam(self.parameters(), lr=alpha)
