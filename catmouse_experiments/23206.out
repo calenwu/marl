@@ -1,0 +1,10 @@
+Running on host: studgpu-node01.inf.ethz.ch
+In directory: /cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments
+Starting on: Thu Jun 27 17:39:48 CEST 2024
+SLURM_JOB_ID: 23206
+using cuda
+21
+40
+episode: 0 | avg score: 126.0 | learning_steps: 0
+episode: 100 | avg score: 164.3 | learning_steps: 28
+slurmstepd: error: *** JOB 23206 ON studgpu-node01 CANCELLED AT 2024-06-27T17:40:15 ***

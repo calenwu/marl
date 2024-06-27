@@ -162,8 +162,9 @@ class CatMouseMAD(gym.Env):
         return agent_obs, info
     
     def _get_window(self, cur_pos):
-        window_agents = np.zeros((self.grid_size,self.grid_size), dtype=int)
-        window_prey = np.zeros((self.grid_size,self.grid_size), dtype=int)
+        window_size = 2 * self.observation_radius + 1
+        window_agents = np.zeros((window_size,window_size), dtype=int)
+        window_prey = np.zeros((window_size,window_size), dtype=int)
         start = cur_pos - self.observation_radius
         end = cur_pos + self.observation_radius
         for wi, i in enumerate(range(start[0],end[0]+1)):

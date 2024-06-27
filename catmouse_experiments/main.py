@@ -119,7 +119,7 @@ class CatMouseDiscrete:
 		for ob in obs:
 			temp = []
 			agent_grid = ob["agent_grid"].flatten()
-			prey_grid = ob["agent_grid"].flatten()
+			prey_grid = ob["prey_grid"].flatten()
 			agent_pos = ob["agent_pos"]
 			agent_id = np.array([ob["agent_id"]])
 			temp.append(agent_grid)
@@ -341,12 +341,10 @@ def train(agent: Agent, env, n_games=10000, best_score=-100, learning_step=128):
 		steps = 0
 		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
-			_, reward, done, _, _, state_ = env.step(action)
-			# if done:
-			# 	print(n_steps)
+			temp, reward, done, _, _, state_ = env.step(action)
+			print(temp.shape)
 			n_steps += 1
 			score += reward
-			# print(reward)
 			agent.remember(state, action, prob, val, reward/100.0, done)
 			if n_steps % learning_step == 0:
 				agent.learn()
@@ -379,8 +377,8 @@ if __name__ == '__main__':
 	eval = False
 	n_agents = 2
 	n_prey = 20
-	grid_size = 7
-	observation_radius = 2
+	grid_size = 5
+	observation_radius = 1
 	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size, observation_radius=observation_radius)
 	# env = Lumberjacks()
 	n_games = 30000
