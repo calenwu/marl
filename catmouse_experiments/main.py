@@ -146,7 +146,7 @@ class CatMouseDiscrete:
 		self.env = CatMouseMAD(observation_radius=observation_radius, n_agents=n_agents, n_prey=n_prey, grid_size=grid_size)
 		# self.state_dim = (grid_size ** 2) * 2 + n_agents * 2 # global state, 2 grids (agents, prey) + agent positions
 		# self.state_dim = (grid_size ** 2) * (n_agents + 1) + n_agents * 2 # global state, 1 grid per agent + grid for trees + agent positions
-		self.state_dim = n_agents * (9 * 2) + n_agents * 2 # local lumberjack state
+		self.state_dim = n_agents * (((observation_radius * 2 + 1) ** 2) * 2) + n_agents * 2 # local lumberjack state
 		self.obs_dim = ((observation_radius * 2 + 1) ** 2) * 2 +  3 # local observation, 2 local grids + cur agent position + id
 		self.n_actions_per_agent = 9
 		self.ma = ma
