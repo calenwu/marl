@@ -1,0 +1,7 @@
+Running on host: studgpu-node01.inf.ethz.ch
+In directory: /cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments
+Starting on: Fri Jun 28 23:53:19 CEST 2024
+SLURM_JOB_ID: 23413
+using cuda
+[[-1.0, -1.0]]
+slurmstepd: error: *** JOB 23413 ON studgpu-node01 CANCELLED AT 2024-06-28T23:54:28 ***

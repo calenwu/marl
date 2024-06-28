@@ -119,7 +119,7 @@ class CatMouseDiscrete:
 		for ob in obs:
 			temp = []
 			agent_grid = ob["agent_grid"].flatten()
-			prey_grid = ob["agent_grid"].flatten()
+			prey_grid = ob["prey_grid"].flatten()
 			agent_pos = ob["agent_pos"]
 			agent_id = np.array([ob["agent_id"]])
 			temp.append(agent_grid)
@@ -146,7 +146,7 @@ class CatMouseDiscrete:
 		self.env = CatMouseMAD(observation_radius=observation_radius, n_agents=n_agents, n_prey=n_prey, grid_size=grid_size)
 		# self.state_dim = (grid_size ** 2) * 2 + n_agents * 2 # global state, 2 grids (agents, prey) + agent positions
 		# self.state_dim = (grid_size ** 2) * (n_agents + 1) + n_agents * 2 # global state, 1 grid per agent + grid for trees + agent positions
-		self.state_dim = n_agents * (9 * 2) + n_agents * 2 # local lumberjack state
+		self.state_dim = n_agents * (((observation_radius * 2 + 1) ** 2) * 2) + n_agents * 2 # local lumberjack state
 		self.obs_dim = ((observation_radius * 2 + 1) ** 2) * 2 +  3 # local observation, 2 local grids + cur agent position + id
 		self.n_actions_per_agent = 9
 		self.ma = ma
@@ -341,12 +341,9 @@ def train(agent: Agent, env, n_games=10000, best_score=-100, learning_step=128):
 		steps = 0
 		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
-			_, reward, done, _, _, state_ = env.step(action)
-			# if done:
-			# 	print(n_steps)
+			temp, reward, done, _, _, state_ = env.step(action)
 			n_steps += 1
 			score += reward
-			# print(reward)
 			agent.remember(state, action, prob, val, reward/100.0, done)
 			if n_steps % learning_step == 0:
 				agent.learn()
