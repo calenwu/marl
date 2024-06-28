@@ -376,9 +376,9 @@ def evaluate(agent: Agent, env):
 
 if __name__ == '__main__':
 	
-	eval = False
+	eval = True
 	n_agents = 2
-	n_prey = 20
+	n_prey = 5
 	grid_size = 7
 	observation_radius = 2
 	env = CatMouseDiscrete(evaluate=eval, n_agents=n_agents, n_prey=n_prey, ma=False, grid_size=grid_size, observation_radius=observation_radius)

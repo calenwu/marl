@@ -113,7 +113,7 @@ class ActorNetwork(nn.Module):
 	def load_checkpoint(self, path: str=None):
 		if not path:
 			path = self.checkpoint_file
-		self.load_state_dict(T.load(path))
+		self.load_state_dict(T.load(path, map_location=device))
 
 class CriticNetwork(nn.Module):
 	def __init__(self, input_dims, alpha, hidden_dim=128, chkpt_dir='tmp/ppo'):
@@ -145,7 +145,7 @@ class CriticNetwork(nn.Module):
 	def load_checkpoint(self, path: str=None):
 		if not path:
 			path = self.checkpoint_file
-		self.load_state_dict(T.load(path))
+		self.load_state_dict(T.load(path, map_location=device))
 
 class Agent:
 	# N = horizon, steps we take before we perform an update
