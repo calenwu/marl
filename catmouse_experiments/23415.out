@@ -1,0 +1,58 @@
+Running on host: studgpu-node01.inf.ethz.ch
+In directory: /cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments
+Starting on: Fri Jun 28 23:55:46 CEST 2024
+SLURM_JOB_ID: 23415
+using cuda
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+test
+Traceback (most recent call last):
+  File "/cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments/main.py", line 401, in <module>
+    train(agent, env, n_games=n_games)
+  File "/cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments/main.py", line 344, in train
+    temp, reward, done, _, _, state_ = env.step(action)
+  File "/cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments/main.py", line 168, in step
+    obs_next_n, r_n, done_n, trunc, info = self.env.step(self.get_action_discrete(a_n))
+  File "/cluster/courses/3dv/data/team-25/decentralized_marl/catmouse_experiments/marl_gym/marl_gym/envs/cat_mouse/cat_mouse_discrete.py", line 212, in step
+    assert np.array_equal(prey_map, self.prey)
+AssertionError
+srun: error: studgpu-node01: task 0: Exited with exit code 1

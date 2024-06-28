@@ -342,7 +342,6 @@ def train(agent: Agent, env, n_games=10000, best_score=-100, learning_step=128):
 		while not done and steps < 50:
 			action, prob, val = agent.choose_action(state)
 			temp, reward, done, _, _, state_ = env.step(action)
-			print(temp.shape)
 			n_steps += 1
 			score += reward
 			agent.remember(state, action, prob, val, reward/100.0, done)
