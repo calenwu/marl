@@ -42,11 +42,9 @@ class CatMouseMAD(gym.Env):
         max_iter (int, optional): Maximum number of steps per episode. Defaults to None (no limit).
         n_agents (int): Number of agents in the environment. Defaults to 2.
         n_prey (int): Number of prey in the environment. Defaults to 4.
-        step_size (float): Step size for agent movement. Defaults to 0.05.
-        entity_size (float): Size of agents and prey (radius). Defaults to 0.05.
-        observation_radius (float): Observation radius for agents. Defaults to 0.2.
-        communication_radius (float): Communication radius for agents. Defaults to 0.2.
-        step_cost (float): Reward penalty for each step. Defaults to -0.1.
+        observation_radius (int): Observation radius for agents. Defaults to 1.
+        communication_radius (int): Communication radius for agents. Defaults to 1.
+        step_cost (float): Reward penalty for each step. Defaults to -1.
         window_size (int): Size of the rendering window. Defaults to 250.
         """
         self.grid_size = grid_size
@@ -320,80 +318,7 @@ class CatMouseMAD(gym.Env):
                 prey_map[p[0],p[1]] += 1
         
         self.prey = prey_map
-
-        # prey_new = np.zeros((self.grid_size, self.grid_size))
-        # for i in range(self.grid_size):
-        #     for j in range(self.grid_size):
-        #         if self.prey[i][j] > 0:
-        #             found = False
-        #             for x in range(-self.observation_radius,self.observation_radius+1):
-        #                 for y in range(-self.observation_radius,self.observation_radius+1):
-        #                     if x == 0 and y == 0:
-        #                         continue
-        #                     if 0 <= i + x < self.grid_size and 0 <= j + y < self.grid_size:
-        #                         if self.agents[i+x][j+y] > 0:
-        #                             # run away
-        #                             new_pos = [i,j]
-        #                             if 0 <= i - x < self.grid_size and 0 <= j - y < self.grid_size:
-        #                                 prey_new[i-x][j-y] += self.prey[i][j]
-        #                                 new_pos = [i-x,j-y]
-        #                             else:
-        #                                 prey_new[i][j] += self.prey[i][j]
-        #                                 # corner case
-        #                                 if (i - x >= self.grid_size or i - x < 0) and (j-y >= self.grid_size or j-y < 0):
-        #                                     prey_new[i][j] += self.prey[i][j]
-        #                                 elif i - x >= self.grid_size or i - x < 0:
-        #                                     if y == 0:
-        #                                         if 0 <= j - 1 < self.grid_size:
-        #                                             prey_new[i][j-1] += self.prey[i][j]
-        #                                             new_pos = [i,j-1]
-        #                                         else:
-        #                                             prey_new[i][j+1] += self.prey[i][j]
-        #                                             new_pos = [i,j+1]
-        #                                     else:
-        #                                         prey_new[i][j-y] += self.prey[i][j]
-        #                                         new_pos = [i,j-y]
-        #                                 else: # elif j - y >= self.grid_size or j - y < 0:
-        #                                     if x == 0:
-        #                                         if 0 <= i - 1 < self.grid_size:
-        #                                             prey_new[i-1][j] += self.prey[i][j]
-        #                                             new_pos = [i-1,j]
-        #                                         else:
-        #                                             prey_new[i+1][j] += self.prey[i][j]
-        #                                             new_pos = [i+1,j]
-        #                                     else:
-        #                                         prey_new[i-x][j] += self.prey[i][j]
-        #                                         new_pos = [i-x,j]
-        #                             found = True
-        #                             break
-        #                     if found:
-        #                         break
-        #                 if found:
-        #                     break
-        #             # if not in vicinity of cat, either random movement or stays still
-        #             if not found:
-        #                 sample = random.randint(0,8)
-        #                 dir = ACTION_LIST[sample]
-        #                 if 0 <= i + dir[0] < self.grid_size and 0 <= j + dir[1] < self.grid_size:
-        #                     prey_new[i+dir[0]][j+dir[1]] += self.prey[i][j]
-        #                     new_pos = [i+dir[0],j+dir[1]]
-        #                 else:
-        #                     prey_new[i][j] += self.prey[i][j]
-        #                     new_pos = [i,j]
-
-
-        #             print(new_pos)
-
-        #             for prey_p in self.prey_pos:
-        #                 if prey_p[2] == 1:
-        #                     continue
-        #                 if i == prey_p[0] and j == prey_p[1]:
-        #                     prey_p[0] = new_pos[0]
-        #                     prey_p[1] = new_pos[1]
-
-        # self.prey = prey_new
         
-
     def _check_caught(self):
         """
         Check if in current environment state an agent can catch a prey and update accordingly.
