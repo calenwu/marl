@@ -1,5 +1,6 @@
 import time
 import gym
+import sys
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ from normalization import Normalization
 from buffer import Buffer
 from agent import Agent
 from pettingzoo.mpe import simple_spread_v3
+sys.path.append("..")
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_ma import CatMouseMA
 from marl_gym.marl_gym.envs.cat_mouse.cat_mouse_discrete import CatMouseMAD
 
