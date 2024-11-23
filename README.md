@@ -8,5 +8,5 @@ In the following we outline the location of the implementations for clarity:
 * IPPO with Belief: ippo_algorithm_belief_catmouse/ (Cat & Mouse), ippo_algorithm_belief_lumberjack/ (Lumberjacks)
 * Further Research: unused/
 
-![lumberjacks]([https://raw.githubusercontent.com/hashrocket/hr-til/master/app/assets/images/banner.png](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/lumberjacks.gif))
-![simple_spread]([https://raw.githubusercontent.com/hashrocket/hr-til/master/app/assets/images/banner.png](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/simple_spread.gif))
+![lumberjacks](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/lumberjacks.gif)
+![simple_spread](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/simple_spread.gif)
