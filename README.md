@@ -7,3 +7,6 @@ In the following we outline the location of the implementations for clarity:
 * MAPPO: mappo_algorithm/ (Both environments
 * IPPO with Belief: ippo_algorithm_belief_catmouse/ (Cat & Mouse), ippo_algorithm_belief_lumberjack/ (Lumberjacks)
 * Further Research: unused/
+
+![til]([https://raw.githubusercontent.com/hashrocket/hr-til/master/app/assets/images/banner.png](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/lumberjacks.gif))
+![til]([https://raw.githubusercontent.com/hashrocket/hr-til/master/app/assets/images/banner.png](https://raw.githubusercontent.com/calenwu/marl/refs/heads/main/gifs/simple_spread.gif))
